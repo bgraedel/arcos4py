@@ -93,11 +93,11 @@ class detectCollev:
             raise columnError("Input data does not have the indicated position columns!")
 
     def _check_frame_column(self):
-        if not self.frame_column in self.columns_input:
+        if self.frame_column not in self.columns_input:
             raise columnError("Input data does not have the indicated frame column!")
 
     def _check_id_column(self):
-        if not self.id_column in self.columns_input:
+        if self.id_column not in self.columns_input:
             raise columnError("Input data does not have the indicated id column!")
 
     def _check_eps(self):
@@ -131,7 +131,7 @@ class detectCollev:
         dtype: pandas dataframe
         filtered columns necessary for calcuation
         """
-        if bin_col == None:
+        if bin_col is None:
             columns = [frame_col, id_col]
         else:
             columns = [frame_col, id_col, bin_col]

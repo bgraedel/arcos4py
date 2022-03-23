@@ -3,11 +3,11 @@
 """Tests for `arcos_py` package."""
 
 import pandas as pd
-from pandas.testing import assert_frame_equal
 import pytest
+from pandas.testing import assert_frame_equal
 
-from arcos_py import ARCOS
-from arcos_py.tools.errors import noDataError
+from arcos4py import ARCOS
+from arcos4py.tools.errors import noDataError
 
 
 @pytest.fixture
@@ -30,7 +30,7 @@ def test_empty_data(no_bin_data: pd.DataFrame):
         ts = ARCOS(
             test_data, posCols=pos, frame_column='time', id_column='id', measurment_column='m', clid_column='clTrackID'
         )
-        out = ts.trackCollev(eps=1, minClsz=1, nPrev=2)
+        ts.trackCollev(eps=1, minClsz=1, nPrev=2)
 
 
 def test_1_central_1_prev():

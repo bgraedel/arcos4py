@@ -1,6 +1,6 @@
-import pytest
-from arcos_py.tools import clipMeas
 import numpy as np
+
+from arcos4py.tools import clipMeas
 
 
 def test_clipping():

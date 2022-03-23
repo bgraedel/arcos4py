@@ -1,9 +1,9 @@
-from numpy import NaN
-import pytest
-from arcos_py.tools import interpolation
 import pandas as pd
-
+import pytest
+from numpy import NaN
 from pandas.testing import assert_frame_equal
+
+from arcos4py.tools import interpolation
 
 
 @pytest.fixture
@@ -25,6 +25,7 @@ def test_data():
 
 
 def test_interpolate_middle(test_data: pd.DataFrame):
+
     df, df_out = test_data
     df['t'] = interpolation(df['t'].to_numpy()).interpolate()
     df['t'] = df['t'].astype(int)

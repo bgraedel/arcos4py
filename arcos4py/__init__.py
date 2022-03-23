@@ -1,4 +1,4 @@
-"""Top-level package for arcos-py."""
+"""Top-level package for arcos4py."""
 
 __author__ = """Benjamin Graedel"""
 __email__ = "benjamin.graedel@unibe.ch"

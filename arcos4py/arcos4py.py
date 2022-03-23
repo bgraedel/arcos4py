@@ -35,7 +35,8 @@ class ARCOS:
         >>> posCols = ['posx', 'posy']
 
     cols: dict
-    dict containing the frame column, the id column, the measurment column and the column names generated for collective events
+    dict containing the frame column, the id column, the measurment column
+    and the column names generated for collective events
         >>> cols = {
             "frame": "time",
             "id": "trackID",
