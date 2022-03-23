@@ -1,4 +1,4 @@
-"""Tools for plotting collective events"""
+"""Tools for plotting collective events."""
 
 __author__ = """Benjamin Graedel"""
 __email__ = "benjamin.graedel@unibe.ch"

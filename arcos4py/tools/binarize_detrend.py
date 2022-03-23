@@ -1,3 +1,4 @@
+"""Module containing binarization and detrending classes."""
 import numpy as np
 import pandas as pd
 from scipy.ndimage import median_filter
@@ -6,40 +7,13 @@ from sklearn.preprocessing import PolynomialFeatures, minmax_scale
 
 
 class detrender:
-    """
-    Smooth and de-trend input data
+    """Smooth and de-trend input data.
 
     First a short-term median filter with size smoothK is applied
     to remove fast noise from the time series.
     The subsequent de-trending can be performed with a long-term median filter
     with the size biasK {biasMet = "runmed"}
     or by fitting a polynomial of degree polyDeg {biasMet = "lm"}.
-
-    Args
-    ----
-
-    x: np.ndarray
-        array with the time series data for smoothing.
-
-    smoothK: int, default = 3
-        Size of the short-term median smoothing filter.
-
-    biasK: int, default = 51
-        Size of the long-term de-trending median filter
-
-    peakThr: float, default = 0.2
-        Threshold for rescaling of the de-trended signal.
-
-    polyDeg: int, default = 1
-        Sets the degree of the polynomial for lm fitting.
-
-    biasMet: str
-        De-trending method, one of ['runmed', 'lm', 'none'].
-
-    Methods
-    -------
-    run_detrend():
-        Returns the detrended/smoothed numpy array
     """
 
     def __init__(
@@ -53,7 +27,33 @@ class detrender:
         colMeas: str = "meas",
         colGroup: str = "id",
     ) -> None:
+        """Smooth and de-trend input data.
 
+        Args
+        ----
+        x: np.ndarray
+            array with the time series data for smoothing.
+
+        smoothK: int, default = 3
+            Size of the short-term median smoothing filter.
+
+        biasK: int, default = 51
+            Size of the long-term de-trending median filter
+
+        peakThr: float, default = 0.2
+            Threshold for rescaling of the de-trended signal.
+
+        polyDeg: int, default = 1
+            Sets the degree of the polynomial for lm fitting.
+
+        biasMet: str
+            De-trending method, one of ['runmed', 'lm', 'none'].
+
+        Methods
+        -------
+        run_detrend():
+            Returns the detrended/smoothed numpy array
+        """
         # check if biasmethod contains one of these three types
         biasMet_types = ["runmed", "lm", "none"]
         if biasMet not in biasMet_types:
@@ -107,18 +107,25 @@ class detrender:
         return data
 
     def detrend(self, data: pd.DataFrame, group_col: str, resc_col):
+        """Run detrinding on input data.
+
+        Method applies detrending to each group defined in group_col and
+        outputs it into the resc_column.
+
+        Returns: pd.Dataframe
+            Dataframe containing rescaled column
+        """
         data_gp = data.groupby([group_col])
         data = data_gp.apply(lambda y: self._run_detrend(y, resc_col))
         return data
 
 
 class binData(detrender):
-    r"""
-    Smooth, de-trend, and binarise the input data
+    """Smooth, de-trend, and binarise the input data.
 
     First a short-term median filter with size smoothK
     is applied to remove fast noise from the time series.
-    If the de-trending method is set to \code{"none"},
+    If the de-trending method is set to "none",
     smoothing is applied on globally rescaled time series.
     The subsequent de-trending can be performed with a long-term median filter
     with the size biasK {biasMet = "runmed"}
@@ -128,32 +135,6 @@ class binData(detrender):
     if the global difference between min/max is greater than the threshold
     the signal is rescaled to the (0,1) range.
     The final signal is binarised using the binThr threshold
-
-    Args
-    ----
-
-    x: np.ndarray
-        array with the time series data for smoothing.
-
-    smoothK: int, default = 3
-        Size of the short-term median smoothing filter.
-
-    biasK: int, default = 51
-        Size of the long-term de-trending median filter
-
-    peakThr: float, default = 0.2
-        Threshold for rescaling of the de-trended signal.
-
-    polyDeg: int, default = 1
-        Sets the degree of the polynomial for lm fitting.
-
-    biasMet: str
-        De-trending method, one of ['runmed', 'lm', 'none'].
-
-    Methods
-    -------
-    run():
-        Returns the detrended/smoothed and binarized 2d numpy array
     """
 
     def __init__(
@@ -168,6 +149,42 @@ class binData(detrender):
         colMeas: str = "meas",
         colGroup: str = "id",
     ) -> None:
+        """Smooth, de-trend, and binarise the input data.
+
+        Parameters
+        ----------
+        x: pandas Dataframe
+            array with the time series data for smoothing.
+
+        smoothK: int, default = 3
+            Size of the short-term median smoothing filter.
+
+        biasK: int, default = 51
+            Size of the long-term de-trending median filter.
+
+        peakThr: float, default = 0.2
+            Threshold for rescaling of the de-trended signal.
+
+        binThr: float, default = 0.1
+            Threshold for binarizing the de-trended signal.
+
+        polyDeg: int, default = 1
+            Sets the degree of the polynomial for lm fitting.
+
+        biasMet: str
+            De-trending method, one of ['runmed', 'lm', 'none'].
+
+        colMeas: str
+            Measurment column in x.
+
+        colGroup: str
+            Track id column in x.
+
+        Methods
+        -------
+        run():
+            Returns the detrended/smoothed and binarized 2d numpy array
+        """
         super().__init__(x, smoothK, biasK, peakThr, polyDeg, biasMet, colMeas, colGroup)
         self.binThr = binThr
         self.col_resc = f"{self.colMeas}.resc"
@@ -184,8 +201,7 @@ class binData(detrender):
         return df
 
     def run(self) -> pd.DataFrame:
-        """
-        Runs binarization and detrending
+        """Runs binarization and detrending.
 
         Returns
         -------

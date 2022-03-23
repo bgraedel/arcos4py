@@ -1,4 +1,6 @@
-from dataclasses import dataclass, field
+"""Module to track and detect collective events."""
+
+from typing import Union
 
 import pandas as pd
 
@@ -7,10 +9,9 @@ from .tools.cleandata import clipMeas, interpolation
 from .tools.detect_events import detectCollev
 
 
-@dataclass
 class ARCOS:
-    """
-    Detects and tracks collective events in a tracked timeseries dataset.
+    """Detects and tracks collective events in a tracked timeseries dataset.
+
     Requires binarized measurment column, that can be generated with the
     bin_measurements method.
     Tracking uses of the dbscan algorithm, applys this to every timeframe
@@ -24,47 +25,50 @@ class ARCOS:
     clip_meas(),
     bin_measurements(),
     trackCollev()
-
-    Args
-    ----
-    data: pandas DataFrame
-    Input Data of tracked timeseries containing position columns, a measurment column and an object ID column
-
-    posCols: list
-    dict containing positin column names (strings) inside data e.g. At least one dimension is required
-        >>> posCols = ['posx', 'posy']
-
-    cols: dict
-    dict containing the frame column, the id column, the measurment column
-    and the column names generated for collective events
-        >>> cols = {
-            "frame": "time",
-            "id": "trackID",
-            "measurment": "meas",
-            "clid": "clTrackID",
-            }
-
     """
 
-    data: pd.DataFrame
-    posCols: list = field(default_factory=lambda: ["x"])
-    frame_column: str = 'time'
-    id_column: str = 'id'
-    measurment_column: str = 'meas'
-    clid_column: str = 'clTrackID'
-    # cols: dict = field(
-    #     default_factory=lambda: {
-    #         "frame": "time",
-    #         "id": "trackID",
-    #         "measurment": "meas",
-    #         "clid": "clTrackID",
-    #     }
-    # )
+    def __init__(
+        self,
+        data: pd.DataFrame,
+        posCols: list = ["x"],
+        frame_column: str = 'time',
+        id_column: str = 'id',
+        measurment_column: str = 'meas',
+        clid_column: str = 'clTrackID',
+    ) -> None:
+        """Detects and tracks collective events in a tracked timeseries dataset.
 
-    def __post_init__(self):
+        Parameters
+        ----
+        data: pandas DataFrame
+            Input Data of tracked timeseries containing position columns, a measurment column and an object ID column
+
+        posCols: list
+            dict containing positin column names (strings) inside data e.g. At least one dimension is required
+            >>> posCols = ['posx', 'posy']
+
+        frame_column: str
+            String indicating the frame column in input_data
+
+        id_column: str
+            String indicating the track id/id column in input_data
+
+        measurment_column: str
+            String indicating the measurment column in input_data
+
+        clid_column: str
+            String indicating the column name containing the collective event ids
+        """
+        self.data = data
+        self.posCols = posCols
+        self.frame_column = frame_column
+        self.id_column = id_column
+        self.measurment_column = measurment_column
+        self.clid_column = clid_column
+
         self.data_binarized: pd.DataFrame = None
         self.tracked_events: pd.DataFrame = None
-        self.bin_col: str = None
+        self.bin_col: Union[str, None] = None
         # to check if no measurment was provided assign None
 
         self.data = self.data.sort_values(by=[self.frame_column, self.id_column])
@@ -74,15 +78,11 @@ class ARCOS:
             self.bin_col = f"{self.measurment_column}.bin"
 
     def __repr__(self):
-        """
-        returns self.data when calling print() on self
-        """
+        """Returns self.data when calling print() on self."""
         return repr(self.data)
 
     def _check_col_dict(self):
-        """
-        checks that self.cols contains all required columns
-        """
+        """Checks that self.cols contains all required columns."""
         columns = self.data.columns
         input_columns = [self.frame_column, self.id_column, self.id_column, self.measurment_column]
         input_columns = [col for col in input_columns if col is not None]
@@ -90,12 +90,11 @@ class ARCOS:
             raise ValueError(f"Columns {input_columns} do not match with column in dataframe.")
 
     def interpolate_measurements(self) -> pd.DataFrame:
-        """
-        Interpolates measurment column NaN's in place
+        """Interpolates measurment column NaN's in place.
 
         Returns
         -------
-        Dataframe with interpolated measurment column
+            Dataframe with interpolated measurment column
         """
         meas_column = self.data[self.measurment_column].to_numpy()
         meas_interp = interpolation(meas_column).interpolate()
@@ -103,8 +102,7 @@ class ARCOS:
         return self.data
 
     def clip_meas(self, clip_low: float = 0.001, clip_high=0.999) -> pd.DataFrame:
-        """
-        Clip measurment column to upper and lower quantilles defined in clip_low and clip_high
+        """Clip measurment column to upper and lower quantilles defined in clip_low and clip_high.
 
         Args
         ----
@@ -132,8 +130,7 @@ class ARCOS:
         polyDeg: int = 1,
         biasMet: str = "runmed",
     ) -> pd.DataFrame:
-        r"""
-        Smooth, de-trend, and binarise the input data
+        r"""Smooth, de-trend, and binarise the input data.
 
         First a short-term median filter with size smoothK
         is applied to remove fast noise from the time series.
@@ -183,8 +180,8 @@ class ARCOS:
         return self.data
 
     def trackCollev(self, eps: float = 1, minClsz: int = 1, nPrev: int = 1) -> pd.DataFrame:
-        """
-        Identifies and tracks collective signalling events.
+        """Identifies and tracks collective signalling events.
+
         Requires binarized measurment column.
         Makes use of the dbscan algorithm,
         applys this to every timeframe and subsequently connects

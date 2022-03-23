@@ -7,7 +7,7 @@ import pytest
 from pandas.testing import assert_frame_equal
 
 from arcos4py import ARCOS
-from arcos4py.tools.errors import noDataError
+from arcos4py.tools._errors import noDataError
 
 
 @pytest.fixture

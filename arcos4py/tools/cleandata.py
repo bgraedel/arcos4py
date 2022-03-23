@@ -1,22 +1,28 @@
+"""Module containing clipping and interplation classes."""
 import numpy as np
 
 
 class interpolation:
-    """
-    Interpolate nan values in a numpy array
+    """Interpolate nan values in a numpy array.
 
-    Args
+    Parameters
     ----
     data: np.ndarray
         nd array, where nan should be replaced with interpolated values
     """
 
     def __init__(self, data: np.ndarray):
+        """Interpolate nan values in a numpy array.
+
+        Parameters
+        ----
+        data: np.ndarray
+            nd array, where nan should be replaced with interpolated values
+        """
         self.data = data
 
     def _nan_helper(self, y):
-        """
-        Helper to handle indices and logical indices of NaNs.
+        """Helper to handle indices and logical indices of NaNs.
 
         Input:
             - y, 1d numpy array with possible NaNs
@@ -32,8 +38,8 @@ class interpolation:
         return np.isnan(y), lambda z: z.nonzero()[0]
 
     def interpolate(self):
-        """
-        interpolate nan and missing values
+        """Interpolate nan and missing values.
+
         Args
         ---
         data: np.ndarray
@@ -49,20 +55,25 @@ class interpolation:
 
 
 class clipMeas:
-    """
-    Clips array to quantilles
+    """Clips array to quantilles.
 
-    Args
+    Parameters
     ----
     data: numpy ndarray
     """
 
     def __init__(self, data: np.ndarray):
+        """Clips array to quantilles.
+
+        Parameters
+        -----
+        data: numpy ndarray
+            input array to be clipped
+        """
         self.data = data
 
     def _calculate_percentile(self, data: np.ndarray, clip_low: float, clip_high: float):
-        """
-        calculate upper and lower quantille
+        """Calculate upper and lower quantille.
 
         Args
         ----
@@ -82,8 +93,7 @@ class clipMeas:
         return quantille_low, quantille_high
 
     def clip(self, clip_low: float = 0.001, clip_high: float = 0.999):
-        """
-        Clip input array to upper and lower quantilles defined in clip_low and clip_high
+        """Clip input array to upper and lower quantilles defined in clip_low and clip_high.
 
         Args
         ----

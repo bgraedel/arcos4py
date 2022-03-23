@@ -1,9 +1,10 @@
+"""Module containing tools to calculate statistics of collective events."""
+
 import pandas as pd
 
 
 class calcCollevStats:
-    """
-    Class to calculate statistics of collective events
+    """Class to calculate statistics of collective events.
 
     Example:
     >>> test = class calcCollevStats
@@ -12,11 +13,11 @@ class calcCollevStats:
     """
 
     def __init__(self) -> None:
+        """Class to calculate statistics of collective events."""
         pass
 
     def _calculate_duration_size_group(self, data: pd.DataFrame, frame_column: str):
-        """
-        calculates duration and size for the collective event in the dataframe
+        """Calculates duration and size for the collective event in the dataframe.
 
         Args
         ----
@@ -50,9 +51,8 @@ class calcCollevStats:
         frame_column: str,
         collev_id: str,
     ):
-        """
-        Applies self._calculate_duration_size_group() to every group
-        i.e. every collective event
+        """Applies self._calculate_duration_size_group() to every group\
+        i.e. every collective event.
 
         Args
         ----
@@ -76,8 +76,7 @@ class calcCollevStats:
         return colev_duration
 
     def calculate(self, data: pd.DataFrame, frame_column: str, collid_column: str):
-        """
-        Calculate statistics of collective events
+        """Calculate statistics of collective events.
 
         Args
         ----
@@ -87,14 +86,13 @@ class calcCollevStats:
         frame_column: str
             string indicating the frame column in data
 
-        collid_column: str \n
+        collid_column: str
             string indicating the collective event id column in data
 
         Returns
         -------
         pandas dataframe containing collective events stats
         """
-
         colev_stats = self._get_collev_duration(data, frame_column, collid_column)
         return colev_stats
 

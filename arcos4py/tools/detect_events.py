@@ -1,50 +1,21 @@
+"""Module to track and detect collective events."""
+
+from typing import Union
+
 import pandas as pd
 from scipy.spatial import KDTree
 from sklearn.cluster import DBSCAN
 
-from .errors import columnError, epsError, minClSzError, noDataError, nPrevError
+from ._errors import columnError, epsError, minClSzError, noDataError, nPrevError
 
 
 class detectCollev:
-    """
-    Identifies and tracks collective signalling events.
+    """Identifies and tracks collective signalling events.
+
     Requires binarized measurment column.
     Makes use of the dbscan algorithm,
     applys this to every timeframe and subsequently connects
     collective events between frames located within eps distance of each other.
-
-    Args
-    ----
-    input_data: pandas dataframe.
-        Input data to be processed. Must contain a binarized measurment column
-
-    eps: float
-        The maximum distance between two samples for one to be considered as in
-        the neighborhood of the other.
-        This is not a maximum bound on the distances of points within a cluster.
-        Value also used to connect collective events across multiple frames.
-
-    minClSz: int
-        Minimum size for a cluster to be identified as a collective event
-
-    nPrev: int
-        Number of previous frames the tracking
-        algorithm looks back to connect collective events
-
-    cols: dict
-        Dictionnary of required columns for the algorithm to correctly process the data.
-        Must contain: 'frame', 'id' and 'clid'
-
-    posCols: dict
-        Dictionnary of position columns contained in the data.
-        Must at least contain one and has to be in the form of e.g.
-        'X':'x', 'Y':'y', 'Z':'z'
-
-    Methods
-    -------
-    run():
-        returns pandas dataframe with detected collective events across time
-
     """
 
     def __init__(
@@ -56,10 +27,45 @@ class detectCollev:
         posCols: list = ["x"],
         frame_column: str = 'time',
         id_column: str = 'id',
-        bin_meas_column: str = 'meas',
+        bin_meas_column: Union[str, None] = 'meas',
         clid_column: str = 'clTrackID',
     ) -> None:
+        """Identifies and tracks collective signalling events.
 
+        Parameters
+        ----
+        input_data: pandas dataframe.
+            Input data to be processed. Must contain a binarized measurment column
+
+        eps: float
+            The maximum distance between two samples for one to be considered as in
+            the neighborhood of the other.
+            This is not a maximum bound on the distances of points within a cluster.
+            Value also used to connect collective events across multiple frames.
+
+        minClSz: int
+            Minimum size for a cluster to be identified as a collective event
+
+        nPrev: int
+            Number of previous frames the tracking
+            algorithm looks back to connect collective events
+
+        posCols: list
+            List of position columns contained in the data.
+            Must at least contain one
+
+        frame_column: str
+            String indicating the frame column in input_data
+
+        id_column: str
+            String indicating the track id/id column in input_data
+
+        bin_meas_column: {str, None}
+            String indicating the bin_meas_column in input_data or None
+
+        clid_column: str
+            String indicating the column name containing the collective event ids
+        """
         # assign some variables passed in as arguments to the object
         self.input_data = input_data
         self.eps = eps
@@ -79,16 +85,16 @@ class detectCollev:
         self._run_input_checks()
 
     def _check_input_data(self):
-        """Checks if input contains data
-        raises error if not"""
+        """Checks if input contains data\
+        raises error if not."""
         if self.input_data is None:
             raise noDataError("Input is None")
         elif self.input_data.empty:
             raise noDataError("Input is empty")
 
     def _check_pos_columns(self):
-        """Checks if Input contains correct columns
-        raises Exception if not"""
+        """Checks if Input contains correct columns\
+        raises Exception if not."""
         if not all(item in self.columns_input for item in self.posCols):
             raise columnError("Input data does not have the indicated position columns!")
 
@@ -101,7 +107,7 @@ class detectCollev:
             raise columnError("Input data does not have the indicated id column!")
 
     def _check_eps(self):
-        """Checks if eps is greater than 0"""
+        """Checks if eps is greater than 0."""
         if self.eps <= 0:
             raise epsError("eps has to be greater than 0")
 
@@ -114,7 +120,7 @@ class detectCollev:
             raise nPrevError("Parameter nPrev has to be an integer greater than 0!")
 
     def _run_input_checks(self):
-        """Run input checks"""
+        """Run input checks."""
         self._check_input_data()
         self._check_pos_columns()
         self._check_eps()
@@ -122,9 +128,10 @@ class detectCollev:
         self._check_nPrev()
         self._check_frame_column()
 
-    def _select_necessary_columns(self, data: pd.DataFrame, frame_col: str, id_col: str, pos_col: str, bin_col: str):
-        """
-        Select necessary input colums from input data into dataframe
+    def _select_necessary_columns(
+        self, data: pd.DataFrame, frame_col: str, id_col: str, pos_col: str, bin_col: Union[str, None]
+    ):
+        """Select necessary input colums from input data into dataframe.
 
         Returns
         -------
@@ -140,8 +147,7 @@ class detectCollev:
         return neccessary_data
 
     def _filter_active(self, data, bin_meas_col):
-        """
-        Selects rows with binary value of greater than 0
+        """Selects rows with binary value of greater than 0.
 
         Returns
         -------
@@ -153,10 +159,9 @@ class detectCollev:
         return data
 
     def _dbscan(self, x: pd.DataFrame, collid_col: str):
-        """
-        Dbscan method to run and merge the cluster id labels to the original dataframe
+        """Dbscan method to run and merge the cluster id labels to the original dataframe.
 
-        Args
+        Parameters
         ----
         x: pandas dataframe
             Dataframe with unique frame and position columns
@@ -173,15 +178,16 @@ class detectCollev:
         return x
 
     def _run_dbscan(self, data: pd.DataFrame, frame: str, clid_frame: str):
-        """
-        Apply dbscan method to every timeframe
+        """Apply dbscan method to every timeframe.
 
-        Args
+        Parameters
         ----
         data: pandas dataframe
             must contain position columns and frame column
+
         frame: str
             name of frame column in data
+
         clid_frame: str
             column to be created containing the output cluster ids from dbscan
         """
@@ -191,11 +197,10 @@ class detectCollev:
         return db_labels
 
     def _make_db_id_unique(self, db_data: pd.DataFrame, frame: str, clid_frame, clid):
-        """
-        Make db_scan cluster id labels unique by adding the
-        cummulative sum of previous group to next group
+        """Make db_scan cluster id labels unique by adding the\
+        cummulative sum of previous group to next group.
 
-        Args
+        Parameters
         ----
         db_data: pandas dataframe
             dataframe returned by _run_dbscan function with non-unique cluster ids
@@ -224,16 +229,17 @@ class detectCollev:
         data_b: pd.DataFrame,
         nbr_nearest_neighbours: int = 1,
     ):
-        """
-        Calculates nearest neighbour in from data_a
-        to data_b nearest_neighbours in data_b
+        """Calculates nearest neighbour in from data_a\
+        to data_b nearest_neighbours in data_b.
 
-        Args
+        Parameters
         ----
         data_a: pandas dataframe
             Dataframe a containing position values
-        data_b:
+
+        data_b: pandas dataframe
             Dataframe b containing position values
+
         nbr_nearest_neighbours: int
             integer of numer of nearest neighbours to be calculated
         """
@@ -242,9 +248,8 @@ class detectCollev:
         return nearest_neighbours
 
     def _link_clusters_between_frames(self, data: pd.DataFrame, frame: str, colid: str):
-        """
-        Tracks clusters detected with DBSCAN along a frame axis,
-        returns tracked collective events as a pandas dataframe
+        """Tracks clusters detected with DBSCAN along a frame axis,\
+        returns tracked collective events as a pandas dataframe.
 
         Args
         ----
@@ -255,8 +260,9 @@ class detectCollev:
         colid: str
             colid column
 
-        returns:
-        Pandas dataframe with tracked collective ids
+        Returns:
+        -------
+            Pandas dataframe with tracked collective ids
         """
         # loop over all frames to link detected clusters iteratively
         for t in sorted(data[frame].unique())[1:]:
@@ -295,8 +301,7 @@ class detectCollev:
         return data
 
     def _get_export_columns(self):
-        """Get columns that will contained in the pandas dataframe
-        returned by the run method"""
+        """Get columns that will contained in the pandas dataframe returned by the run method."""
         self.pos_cols_inputdata = [col for col in self.posCols if col in self.columns_input]
         columns = [self.frame_column, self.id_column]
         columns.extend(self.pos_cols_inputdata)
@@ -304,8 +309,8 @@ class detectCollev:
         return columns
 
     def run(self):
-        """
-        Method to execute the different steps necessary for tracking
+        """Method to execute the different steps necessary for tracking.
+
         Returns a pandas dataframe with tracked collective events
         """
         filtered_cols = self._select_necessary_columns(
