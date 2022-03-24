@@ -1,4 +1,10 @@
-"""Module to track and detect collective events."""
+"""Module to track and detect collective events.
+
+Example:
+    >>> from arcos4py.tools import detectCollev
+    >>> ts = detectCollev(data)
+    >>> events_df = ts.run()
+"""
 
 from typing import Union
 
@@ -30,41 +36,40 @@ class detectCollev:
         bin_meas_column: Union[str, None] = 'meas',
         clid_column: str = 'clTrackID',
     ) -> None:
-        """Identifies and tracks collective signalling events.
+        """Constructs class with input parameters.
 
-        Parameters
-        ----
-        input_data: pandas dataframe.
-            Input data to be processed. Must contain a binarized measurment column
+        Parameters:
+            input_data: pandas dataframe.
+                Input data to be processed. Must contain a binarized measurment column
 
-        eps: float
-            The maximum distance between two samples for one to be considered as in
-            the neighborhood of the other.
-            This is not a maximum bound on the distances of points within a cluster.
-            Value also used to connect collective events across multiple frames.
+            eps: float
+                The maximum distance between two samples for one to be considered as in
+                the neighborhood of the other.
+                This is not a maximum bound on the distances of points within a cluster.
+                Value also used to connect collective events across multiple frames.
 
-        minClSz: int
-            Minimum size for a cluster to be identified as a collective event
+            minClSz: int
+                Minimum size for a cluster to be identified as a collective event
 
-        nPrev: int
-            Number of previous frames the tracking
-            algorithm looks back to connect collective events
+            nPrev: int
+                Number of previous frames the tracking
+                algorithm looks back to connect collective events
 
-        posCols: list
-            List of position columns contained in the data.
-            Must at least contain one
+            posCols: list
+                List of position columns contained in the data.
+                Must at least contain one
 
-        frame_column: str
-            String indicating the frame column in input_data
+            frame_column: str
+                String indicating the frame column in input_data
 
-        id_column: str
-            String indicating the track id/id column in input_data
+            id_column: str
+                String indicating the track id/id column in input_data
 
-        bin_meas_column: {str, None}
-            String indicating the bin_meas_column in input_data or None
+            bin_meas_column: {str, None}
+                String indicating the bin_meas_column in input_data or None
 
-        clid_column: str
-            String indicating the column name containing the collective event ids
+            clid_column: str
+                String indicating the column name containing the collective event ids
         """
         # assign some variables passed in as arguments to the object
         self.input_data = input_data
@@ -129,14 +134,28 @@ class detectCollev:
         self._check_frame_column()
 
     def _select_necessary_columns(
-        self, data: pd.DataFrame, frame_col: str, id_col: str, pos_col: str, bin_col: Union[str, None]
-    ):
+        self, data: pd.DataFrame, frame_col: str, id_col: str, pos_col: list, bin_col: Union[str, None]
+    ) -> pd.DataFrame:
         """Select necessary input colums from input data into dataframe.
 
-        Returns
-        -------
-        dtype: pandas dataframe
-        filtered columns necessary for calcuation
+        Parameters:
+            data: pd.DataFrame
+                dataframe containing necessary columns
+
+            frame_col: str
+                String of frame column in data
+
+            id_col: str
+                Sting of Id column in data
+
+            pos_col: list
+                List of string representation of position columns in data
+
+            bin_col: str
+                String of binary column
+
+        Returns:
+            Filtered columns necessary for calcuation
         """
         if bin_col is None:
             columns = [frame_col, id_col]
@@ -146,28 +165,35 @@ class detectCollev:
         neccessary_data = data[columns].copy(deep=True)
         return neccessary_data
 
-    def _filter_active(self, data, bin_meas_col):
+    def _filter_active(self, data: pd.DataFrame, bin_meas_col: Union[str, None]) -> pd.DataFrame:
         """Selects rows with binary value of greater than 0.
 
-        Returns
-        -------
-        dtype: pd.Dataframe
-        Filtered pandas dataframe
+        Parameters:
+            data: pd.DataFrame
+                dataframe containing necessary columns
+
+            bin_meas_col: {str, None}
+                Either String of binary column or None if no such column exists
+
+        Returns:
+            Filtered pandas dataframe
         """
         if bin_meas_col is not None:
             data = data[data[bin_meas_col] > 0]
         return data
 
-    def _dbscan(self, x: pd.DataFrame, collid_col: str):
+    def _dbscan(self, x: pd.DataFrame, collid_col: str) -> pd.DataFrame:
         """Dbscan method to run and merge the cluster id labels to the original dataframe.
 
-        Parameters
-        ----
-        x: pandas dataframe
-            Dataframe with unique frame and position columns
+        Parameters:
+            x: pandas dataframe
+                Dataframe with unique frame and position columns
 
-        collid_col: str
-            column to be created containing cluster id labels
+            collid_col: str
+                column to be created containing cluster id labels
+
+        Returns:
+            Dataframe with added collective id column detected by DBSCAN
         """
         pos_array = x[self.pos_cols_inputdata]
         db_array = DBSCAN(eps=self.eps, min_samples=self.minClSz, algorithm="kd_tree").fit(pos_array)
@@ -177,39 +203,43 @@ class detectCollev:
         x = x[x[collid_col] > 0]
         return x
 
-    def _run_dbscan(self, data: pd.DataFrame, frame: str, clid_frame: str):
-        """Apply dbscan method to every timeframe.
+    def _run_dbscan(self, data: pd.DataFrame, frame: str, clid_frame: str) -> pd.DataFrame:
+        """Apply dbscan method to every group i.e. frame.
 
-        Parameters
-        ----
-        data: pandas dataframe
-            must contain position columns and frame column
+        Parameters:
+            data: pandas dataframe
+                must contain position columns and frame column
 
-        frame: str
-            name of frame column in data
+            frame: str
+                name of frame column in data
 
-        clid_frame: str
-            column to be created containing the output cluster ids from dbscan
+            clid_frame: str
+                column to be created containing the output cluster ids from dbscan
+
+        Returns:
+            Dataframe with added collective id column detected by DBSCAN for every frame
         """
         data_gb = data.groupby([frame])
         db_labels = data_gb.apply(lambda x: self._dbscan(x, clid_frame))
         db_labels = db_labels.reset_index(drop=True)
         return db_labels
 
-    def _make_db_id_unique(self, db_data: pd.DataFrame, frame: str, clid_frame, clid):
+    def _make_db_id_unique(self, db_data: pd.DataFrame, frame: str, clid_frame, clid) -> pd.DataFrame:
         """Make db_scan cluster id labels unique by adding the\
         cummulative sum of previous group to next group.
 
-        Parameters
-        ----
-        db_data: pandas dataframe
-            dataframe returned by _run_dbscan function with non-unique cluster ids
-        frame: str
-            frame column
-        clid_frame: str
-            column name of cluster id per frame
-        clid: str
-            column name of unique cluster ids to be returned
+        Parameters:
+            db_data: pandas dataframe
+                dataframe returned by _run_dbscan function with non-unique cluster ids
+            frame: str
+                frame column
+            clid_frame: str
+                column name of cluster id per frame
+            clid: str
+                column name of unique cluster ids to be returned
+
+        Returns:
+            Dataframe with unique collective events
         """
         db_data_n = db_data[[clid_frame, frame]]
         db_gp = db_data_n.groupby([frame])
@@ -221,47 +251,46 @@ class detectCollev:
         db_data = db_data.drop(columns=["PreviouMax_cumsum"])
         db_data[clid] = db_data[clid_frame]
         return db_data
-        # seems fine till here
 
     def _nearest_neighbour(
         self,
         data_a: pd.DataFrame,
         data_b: pd.DataFrame,
         nbr_nearest_neighbours: int = 1,
-    ):
+    ) -> tuple:
         """Calculates nearest neighbour in from data_a\
         to data_b nearest_neighbours in data_b.
 
-        Parameters
-        ----
-        data_a: pandas dataframe
-            Dataframe a containing position values
+        Parameters:
+            data_a: pandas dataframe
+                Dataframe a containing position values
 
-        data_b: pandas dataframe
-            Dataframe b containing position values
+            data_b: pandas dataframe
+                Dataframe b containing position values
 
-        nbr_nearest_neighbours: int
-            integer of numer of nearest neighbours to be calculated
+            nbr_nearest_neighbours: int
+                integer of numer of nearest neighbours to be calculated
+
+        Returns:
+            Returns tuple of 2 arrays containing nearest neighbour indices and distances
         """
         kdB = KDTree(data=data_a.values)
         nearest_neighbours = kdB.query(data_b.values, k=nbr_nearest_neighbours)
         return nearest_neighbours
 
-    def _link_clusters_between_frames(self, data: pd.DataFrame, frame: str, colid: str):
+    def _link_clusters_between_frames(self, data: pd.DataFrame, frame: str, colid: str) -> pd.DataFrame:
         """Tracks clusters detected with DBSCAN along a frame axis,\
         returns tracked collective events as a pandas dataframe.
 
-        Args
-        ----
-        data: pandas Dataframe
-            output from dbscan
-        frame: str
-            frame column
-        colid: str
-            colid column
+        Parameters:
+            data: pandas.DataFrame
+                output from dbscan
+            frame: str
+                frame column
+            colid: str
+                colid column
 
         Returns:
-        -------
             Pandas dataframe with tracked collective ids
         """
         # loop over all frames to link detected clusters iteratively
@@ -308,10 +337,18 @@ class detectCollev:
         columns.append(self.clid_column)
         return columns
 
-    def run(self):
+    def run(self) -> pd.DataFrame:
         """Method to execute the different steps necessary for tracking.
 
-        Returns a pandas dataframe with tracked collective events
+        1. Selectes columns
+        2. filters data on binary column > 1
+        3. Applies dbscan algorithm to every frame
+        4. Makes cluster ids unique across frames
+        5. Tracks collective events i.e. links cluster ids across frames
+        6. Creates final DataFrame
+
+        Returns:
+            Dataframe with tracked collective events is returned
         """
         filtered_cols = self._select_necessary_columns(
             self.input_data,

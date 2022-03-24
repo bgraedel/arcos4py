@@ -1,4 +1,10 @@
-"""Module containing binarization and detrending classes."""
+"""Module containing binarization and detrending classes.
+
+Example:
+    >>> from arcos4py.tools import binData
+    >>> binarizer = binData(x=data, biasMet="lm", colMeas="ERK_KTR", colGroup="trackID", polyDeg=1)
+    >>> data_rescaled = binarizer.run()
+"""
 import numpy as np
 import pandas as pd
 from scipy.ndimage import median_filter
@@ -29,30 +35,24 @@ class detrender:
     ) -> None:
         """Smooth and de-trend input data.
 
-        Args
-        ----
-        x: np.ndarray
-            array with the time series data for smoothing.
+        Parameters:
+            x: np.ndarray
+                array with the time series data for smoothing.
 
-        smoothK: int, default = 3
-            Size of the short-term median smoothing filter.
+            smoothK: int, default = 3
+                Size of the short-term median smoothing filter.
 
-        biasK: int, default = 51
-            Size of the long-term de-trending median filter
+            biasK: int, default = 51
+                Size of the long-term de-trending median filter.
 
-        peakThr: float, default = 0.2
-            Threshold for rescaling of the de-trended signal.
+            peakThr: float, default = 0.2
+                Threshold for rescaling of the de-trended signal.
 
-        polyDeg: int, default = 1
-            Sets the degree of the polynomial for lm fitting.
+            polyDeg: int, default = 1
+                Sets the degree of the polynomial for lm fitting.
 
-        biasMet: str
-            De-trending method, one of ['runmed', 'lm', 'none'].
-
-        Methods
-        -------
-        run_detrend():
-            Returns the detrended/smoothed numpy array
+            biasMet: str
+                De-trending method, one of ['runmed', 'lm', 'none'].
         """
         # check if biasmethod contains one of these three types
         biasMet_types = ["runmed", "lm", "none"]
@@ -106,13 +106,13 @@ class detrender:
         data[col_meas] = local_smoothed
         return data
 
-    def detrend(self, data: pd.DataFrame, group_col: str, resc_col):
+    def detrend(self, data: pd.DataFrame, group_col: str, resc_col) -> pd.DataFrame:
         """Run detrinding on input data.
 
         Method applies detrending to each group defined in group_col and
         outputs it into the resc_column.
 
-        Returns: pd.Dataframe
+        Returns:
             Dataframe containing rescaled column
         """
         data_gp = data.groupby([group_col])
@@ -134,7 +134,7 @@ class binData(detrender):
     After de-trending,
     if the global difference between min/max is greater than the threshold
     the signal is rescaled to the (0,1) range.
-    The final signal is binarised using the binThr threshold
+    The final signal is binarised using the binThr threshold.
     """
 
     def __init__(
@@ -151,39 +151,33 @@ class binData(detrender):
     ) -> None:
         """Smooth, de-trend, and binarise the input data.
 
-        Parameters
-        ----------
-        x: pandas Dataframe
-            array with the time series data for smoothing.
+        Parameters:
+            x: pandas Dataframe
+                array with the time series data for smoothing.
 
-        smoothK: int, default = 3
-            Size of the short-term median smoothing filter.
+            smoothK: int, default = 3
+                Size of the short-term median smoothing filter.
 
-        biasK: int, default = 51
-            Size of the long-term de-trending median filter.
+            biasK: int, default = 51
+                Size of the long-term de-trending median filter.
 
-        peakThr: float, default = 0.2
-            Threshold for rescaling of the de-trended signal.
+            peakThr: float, default = 0.2
+                Threshold for rescaling of the de-trended signal.
 
-        binThr: float, default = 0.1
-            Threshold for binarizing the de-trended signal.
+            binThr: float, default = 0.1
+                Threshold for binarizing the de-trended signal.
 
-        polyDeg: int, default = 1
-            Sets the degree of the polynomial for lm fitting.
+            polyDeg: int, default = 1
+                Sets the degree of the polynomial for lm fitting.
 
-        biasMet: str
-            De-trending method, one of ['runmed', 'lm', 'none'].
+            biasMet: str
+                De-trending method, one of ['runmed', 'lm', 'none'].
 
-        colMeas: str
-            Measurment column in x.
+            colMeas: str
+                Measurment column in x.
 
-        colGroup: str
-            Track id column in x.
-
-        Methods
-        -------
-        run():
-            Returns the detrended/smoothed and binarized 2d numpy array
+            colGroup: str
+                Track id column in x.
         """
         super().__init__(x, smoothK, biasK, peakThr, polyDeg, biasMet, colMeas, colGroup)
         self.binThr = binThr
@@ -203,10 +197,17 @@ class binData(detrender):
     def run(self) -> pd.DataFrame:
         """Runs binarization and detrending.
 
-        Returns
-        -------
-        dtype: nd.array
-        binarized data, rescaled data
+        If the bias Method is 'none', first it rescales the data to between [0,1], then
+        local smoothing is applied to the measurent by groups, followed by
+        binarization.
+
+        If biasMeth is one of ['lm', 'runmed'], first the data is detrended locally with a
+        median filter and then detrended globally, for 'lm' with a linear model and for 'runmed' with a
+        median filter.
+        Followed by binarization of the data.
+
+        Returns:
+            Dataframe containing Binarized data, rescaled data and the original columns
         """
         if self.biasMet == "none":
             rescaled_data = self._rescale_data(self.x)
@@ -217,14 +218,3 @@ class binData(detrender):
             binarized_data = self._bin_data(detrended_data)
 
         return binarized_data
-
-
-if __name__ == "__main__":
-    df = pd.read_csv(
-        "/home/benjamingraedel/Documents/\
-tracks_191021_wt_curated_smoothedXYZ_interpolated_binarised.csv"
-    )
-    print(df)
-    data = df
-    rescaled = binData(x=data, biasMet="lm", colMeas="ERK_KTR", colGroup="trackID", polyDeg=1).run()
-    print(rescaled)

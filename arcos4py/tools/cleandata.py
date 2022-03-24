@@ -1,53 +1,58 @@
-"""Module containing clipping and interplation classes."""
+"""Module containing clipping and interplation classes.
+
+Example:
+    >>> # Interpolation
+    >>> from arcos4py.tools import interpolation
+    >>> a = interpolation(data)
+    >>> data_interp = a.interpolate()
+
+    >>> # clipping
+    >>> from arcos4py.tools import clipMeas
+    >>> a = clipMeas(data)
+    >>> data_clipped = a.clip(0.001, 0.999)
+
+"""
 import numpy as np
 
 
 class interpolation:
-    """Interpolate nan values in a numpy array.
-
-    Parameters
-    ----
-    data: np.ndarray
-        nd array, where nan should be replaced with interpolated values
-    """
+    """Interpolate nan values in a numpy array."""
 
     def __init__(self, data: np.ndarray):
         """Interpolate nan values in a numpy array.
 
-        Parameters
-        ----
-        data: np.ndarray
-            nd array, where nan should be replaced with interpolated values
+        Parameters:
+            data: numpy.ndarray
+                Array, where NaN should be replaced with interpolated values
         """
         self.data = data
 
-    def _nan_helper(self, y):
+    def _nan_helper(self, y: np.ndarray) -> np.ndarray:
         """Helper to handle indices and logical indices of NaNs.
 
         Input:
             - y, 1d numpy array with possible NaNs
+
         Output:
             - nans, logical indices of NaNs
             - index, a function, with signature indices= index(logical_indices),
             to convert logical indices of NaNs to 'equivalent' indices
+
         Example:
             >>> # linear interpolation of NaNs
             >>> nans, x= nan_helper(y)
             >>> y[nans]= np.interp(x(nans), x(~nans), y[~nans])
+
+        Returns: numpy.ndarray
+            Returns interpolated input data
         """
         return np.isnan(y), lambda z: z.nonzero()[0]
 
-    def interpolate(self):
+    def interpolate(self) -> np.ndarray:
         """Interpolate nan and missing values.
 
-        Args
-        ---
-        data: np.ndarray
-            input data, should be 1 or 2d np
-
-        Returns
-        -------
-        interpolated input data
+        Returns:
+            interpolated input data
         """
         nans, x = self._nan_helper(self.data)
         self.data[nans] = np.interp(x(nans), x(~nans), self.data[~nans])
@@ -55,65 +60,48 @@ class interpolation:
 
 
 class clipMeas:
-    """Clips array to quantilles.
+    """Clip input array."""
 
-    Parameters
-    ----
-    data: numpy ndarray
-    """
-
-    def __init__(self, data: np.ndarray):
+    def __init__(self, data: np.ndarray) -> None:
         """Clips array to quantilles.
 
-        Parameters
-        -----
-        data: numpy ndarray
-            input array to be clipped
+        Parameters:
+            data: numpy.ndarray
+                input array to be clipped
         """
         self.data = data
 
     def _calculate_percentile(self, data: np.ndarray, clip_low: float, clip_high: float):
         """Calculate upper and lower quantille.
 
-        Args
-        ----
-        clip_low: float
-        lower clipping boundry (quantille)
+        Parameters:
+            clip_low: float
+                lower clipping boundry (quantille)
 
-        clip_high: float
-        upper clipping boundry (quantille)
+            clip_high: float
+                upper clipping boundry (quantille)
 
-        Returns
-        -------
-        array with lower quantille, array with upper quantille
+        Returns:
+            array with lower quantille, array with upper quantille
 
         """
         quantille_low = np.quantile(data, clip_low, keepdims=True)
         quantille_high = np.quantile(data, clip_high, keepdims=True)
         return quantille_low, quantille_high
 
-    def clip(self, clip_low: float = 0.001, clip_high: float = 0.999):
+    def clip(self, clip_low: float = 0.001, clip_high: float = 0.999) -> np.ndarray:
         """Clip input array to upper and lower quantilles defined in clip_low and clip_high.
 
-        Args
-        ----
-        clip_low: float
-        lower clipping boundry (quantille)
+        Parameters:
+            clip_low: float
+                lower clipping boundry (quantille)
 
-        clip_high: float
-        upper clipping boundry (quantille)
+            clip_high: float
+                upper clipping boundry (quantille)
 
-        Returns
-        -------
-        clipped array of input data
+        Returns:
+            clipped array of input data
         """
         low, high = self._calculate_percentile(self.data, clip_low, clip_high)
         out = self.data.clip(low, high)
         return out
-
-
-if __name__ == "__main__":
-    y = np.array([1, 1, 1, np.NaN, np.NaN, 2, 2, np.NaN, 0])
-    int_dta = interpolation(y).interpolate()
-    test = clipMeas(int_dta).clip(clip_low=0.1, clip_high=0.8)
-    print(test)

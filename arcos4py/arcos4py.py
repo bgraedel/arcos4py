@@ -1,4 +1,18 @@
-"""Module to track and detect collective events."""
+"""Module to track and detect collective events.
+
+Example:
+    >>> from arcos4py import ARCOS
+    >>> ts = ARCOS(data,["x"], 'time', 'id', 'meas', 'clTrackID')
+    >>> ts.interpolate_measurements()
+    >>> ts.clip_meas(clip_low: = 0.001, clip_high=0.999)
+    >>> ts.bin_measurments(smoothK: int = 3,
+            biasK = 51,
+            peakThr = 0.2,
+            binThr = 0.1,
+            polyDeg = 1,
+            biasMet = "runmed",)
+    >>> events_df = ts.trackCollev(eps = 1, minClsz = 1, nPrev = 1)
+"""
 
 from typing import Union
 
@@ -17,14 +31,6 @@ class ARCOS:
     Tracking uses of the dbscan algorithm, applys this to every timeframe
     and subsequently connects collective events between frames located
     within eps distance of each other.
-
-    Class methods:
-    -------------
-
-    interpolate_measurements(),
-    clip_meas(),
-    bin_measurements(),
-    trackCollev()
     """
 
     def __init__(
@@ -36,28 +42,26 @@ class ARCOS:
         measurment_column: str = 'meas',
         clid_column: str = 'clTrackID',
     ) -> None:
-        """Detects and tracks collective events in a tracked timeseries dataset.
+        """Constructs class with provided parameters.
 
-        Parameters
-        ----
-        data: pandas DataFrame
-            Input Data of tracked timeseries containing position columns, a measurment column and an object ID column
+        Parameters:
+            data: pandas.DataFrame
+                Input Data of tracked timeseries containing position columns, a measurment and an object ID column
 
-        posCols: list
-            dict containing positin column names (strings) inside data e.g. At least one dimension is required
-            >>> posCols = ['posx', 'posy']
+            posCols: list
+                dict containing positin column names (strings) inside data e.g. At least one dimension is required
 
-        frame_column: str
-            String indicating the frame column in input_data
+            frame_column: str
+                String indicating the frame column in input_data
 
-        id_column: str
-            String indicating the track id/id column in input_data
+            id_column: str
+                String indicating the track id/id column in input_data
 
-        measurment_column: str
-            String indicating the measurment column in input_data
+            measurment_column: str
+                String indicating the measurment column in input_data
 
-        clid_column: str
-            String indicating the column name containing the collective event ids
+            clid_column: str
+                String indicating the column name containing the collective event ids
         """
         self.data = data
         self.posCols = posCols
@@ -77,8 +81,8 @@ class ARCOS:
             self.resc_col = f"{self.measurment_column}.resc"
             self.bin_col = f"{self.measurment_column}.bin"
 
-    def __repr__(self):
-        """Returns self.data when calling print() on self."""
+    def __repr__(self) -> pd.DataFrame:
+        """set __repr___ to return self.data."""
         return repr(self.data)
 
     def _check_col_dict(self):
@@ -92,8 +96,7 @@ class ARCOS:
     def interpolate_measurements(self) -> pd.DataFrame:
         """Interpolates measurment column NaN's in place.
 
-        Returns
-        -------
+        Returns:
             Dataframe with interpolated measurment column
         """
         meas_column = self.data[self.measurment_column].to_numpy()
@@ -101,20 +104,18 @@ class ARCOS:
         self.data[self.measurment_column] = meas_interp
         return self.data
 
-    def clip_meas(self, clip_low: float = 0.001, clip_high=0.999) -> pd.DataFrame:
+    def clip_meas(self, clip_low: float = 0.001, clip_high: float = 0.999) -> pd.DataFrame:
         """Clip measurment column to upper and lower quantilles defined in clip_low and clip_high.
 
-        Args
-        ----
-        clip_low: float
-        lower clipping boundry (quantille)
+        Parameters:
+            clip_low: float
+                lower clipping boundry (quantille)
 
-        clip_high: float
-        upper clipping boundry (quantille)
+            clip_high: float
+                upper clipping boundry (quantille)
 
-        Returns
-        -------
-        Dataframe with inplace clipped measurment column
+        Returns:
+            Dataframe with inplace clipped measurment column
         """
         meas_column = self.data[self.measurment_column].to_numpy()
         meas_clipped = clipMeas(meas_column).clip(clip_low, clip_high)
@@ -145,26 +146,24 @@ class ARCOS:
         the signal is rescaled to the (0,1) range.
         The final signal is binarised using the binThr threshold
 
-        Args
-        ----
-        smoothK: int, default = 3
-            Size of the short-term median smoothing filter.
+        Parameters:
+            smoothK: int, default = 3
+                Size of the short-term median smoothing filter.
 
-        biasK: int, default = 51
-            Size of the long-term de-trending median filter
+            biasK: int, default = 51
+                Size of the long-term de-trending median filter
 
-        peakThr: float, default = 0.2
-            Threshold for rescaling of the de-trended signal.
+            peakThr: float, default = 0.2
+                Threshold for rescaling of the de-trended signal.
 
-        polyDeg: int, default = 1
-            Sets the degree of the polynomial for lm fitting.
+            polyDeg: int, default = 1
+                Sets the degree of the polynomial for lm fitting.
 
-        biasMet: str
-            De-trending method, one of ['runmed', 'lm', 'none'].
+            biasMet: str, default = 'runmed'
+                De-trending method, one of ['runmed', 'lm', 'none'].
 
-        Returns
-        -------
-        Dataframe with detrended/smoothed and binarized measurment column
+        Returns:
+            DataFrame with detrended/smoothed and binarized measurment column
         """
         self.data = binData(
             self.data,
@@ -187,24 +186,22 @@ class ARCOS:
         applys this to every timeframe and subsequently connects
         collective events between frames located within eps distance of each other.
 
-        Args
-        ----
-        eps: float
-            The maximum distance between two samples for one to be considered as in
-            the neighborhood of the other.
-            This is not a maximum bound on the distances of points within a cluster.
-            Value also used to connect collective events across multiple frames.
+        Parameters:
+            eps: float
+                The maximum distance between two samples for one to be considered as in
+                the neighborhood of the other.
+                This is not a maximum bound on the distances of points within a cluster.
+                Value also used to connect collective events across multiple frames.
 
-        minClSz: int
-            Minimum size for a cluster to be identified as a collective event
+            minClsz: int
+                Minimum size for a cluster to be identified as a collective event
 
-        nPrev: int
-            Number of previous frames the tracking
-            algorithm looks back to connect collective events
+            nPrev: int
+                Number of previous frames the tracking
+                algorithm looks back to connect collective events
 
-        Returns
-        -------
-        pandas dataframe with detected collective events across time
+        Returns:
+            pandas dataframe with detected collective events across time
 
         """
         self.data = detectCollev(

@@ -1,34 +1,32 @@
-"""Module containing tools to calculate statistics of collective events."""
+"""Module containing tools to calculate statistics of collective events.
+
+Example:
+    >>> from arcos4py.tools import calcCollevStats
+    >>> test = calcCollevStats()
+    >>> out = test().run(data=data,frame_column = "frame", collid_column = "collid")
+"""
 
 import pandas as pd
 
 
 class calcCollevStats:
-    """Class to calculate statistics of collective events.
-
-    Example:
-    >>> test = class calcCollevStats
-    >>> out = test().run(data=data,frame_column = "frame", collid_column = "collid")
-
-    """
+    """Class to calculate statistics of collective events."""
 
     def __init__(self) -> None:
         """Class to calculate statistics of collective events."""
         pass
 
-    def _calculate_duration_size_group(self, data: pd.DataFrame, frame_column: str):
+    def _calculate_duration_size_group(self, data: pd.DataFrame, frame_column: str) -> pd.DataFrame:
         """Calculates duration and size for the collective event in the dataframe.
 
-        Args
-        ----
-        data: pandas dataframe
-            filtered dataframe containing a single collective event
+        Parameters:
+            data: pandas dataframe
+                filtered dataframe containing a single collective event
 
-        frame_column: str
-            string indicating the contained frame column
+            frame_column: str
+                string indicating the contained frame column
 
-        Returns
-        -------
+        Returns:
             Dataframe containing duration, tot_size, min_size and
             max_size of the current collective event
         """
@@ -50,23 +48,21 @@ class calcCollevStats:
         data: pd.DataFrame,
         frame_column: str,
         collev_id: str,
-    ):
+    ) -> pd.DataFrame:
         """Applies self._calculate_duration_size_group() to every group\
         i.e. every collective event.
 
-        Args
-        ----
-        data: pandas dataframe
-            dataframe containing unfiltered collective events
+        Parameters:
+            data: pandas dataframe
+                dataframe containing unfiltered collective events
 
-        collev_id: str
-            string indicating the contained collective id column
+            collev_id: str
+                string indicating the contained collective id column
 
-        frame_column: str
-            string indicating the contained frame column
+            frame_column: str
+                string indicating the contained frame column
 
         Returns:
-        --------
             Dataframe containing duration and tot_size of all collective events
 
         """
@@ -75,31 +71,21 @@ class calcCollevStats:
         colev_duration = colev_duration.droplevel(-1).reset_index()
         return colev_duration
 
-    def calculate(self, data: pd.DataFrame, frame_column: str, collid_column: str):
+    def calculate(self, data: pd.DataFrame, frame_column: str, collid_column: str) -> pd.DataFrame:
         """Calculate statistics of collective events.
 
-        Args
-        ----
-        data: pandas dataframe
-            filtered dataframe containing a single collective event
+        Parameters:
+            data: pandas dataframe
+                filtered dataframe containing a single collective event
 
-        frame_column: str
-            string indicating the frame column in data
+            frame_column: str
+                string indicating the frame column in data
 
-        collid_column: str
-            string indicating the collective event id column in data
+            collid_column: str
+                string indicating the collective event id column in data
 
-        Returns
-        -------
-        pandas dataframe containing collective events stats
+        Returns:
+            pandas dataframe containing collective events stats
         """
         colev_stats = self._get_collev_duration(data, frame_column, collid_column)
         return colev_stats
-
-
-if __name__ == "__main__":
-    test_data = pd.read_csv("/home/benjamingraedel/Documents/arcos_data.csv")
-    print(test_data)
-    tracked_data = calcCollevStats()
-    jo = tracked_data.calculate(data=test_data, frame_column="time", collid_column="collid")
-    print(jo)
