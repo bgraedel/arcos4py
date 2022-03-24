@@ -19,7 +19,7 @@ A python package to detect collective spatio-temporal phenomena
 
 ## Features
 
-Automated Recognition of Collective Signalling (arcos_py) is a python port of a R package (https://github.com/dmattek/ARCOS
+Automated Recognition of Collective Signalling (arcos4py) is a python port of the R package ARCOS (https://github.com/dmattek/ARCOS
 ) to identify collective spatial events in time series data.
 The software identifies collective protein activation in 2- and 3D cell cultures over time. Such collective waves have been recently identified in various biological systems.
 They have been demonstrated to play an important role in the maintenance of epithelial homeostasis (Gagliardi et al., 2020, Takeuchi et al., 2020, Aikin et al., 2020),
