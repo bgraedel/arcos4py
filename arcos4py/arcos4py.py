@@ -44,7 +44,7 @@ class ARCOS:
     ) -> None:
         """Constructs class with provided parameters.
 
-        Parameters:
+        Arguments:
             data: pandas.DataFrame
                 Input Data of tracked timeseries containing position columns, a measurment and an object ID column
 
@@ -82,7 +82,7 @@ class ARCOS:
             self.bin_col = f"{self.measurment_column}.bin"
 
     def __repr__(self) -> pd.DataFrame:
-        """set __repr___ to return self.data."""
+        """Set __repr___ to return self.data."""
         return repr(self.data)
 
     def _check_col_dict(self):
@@ -107,7 +107,7 @@ class ARCOS:
     def clip_meas(self, clip_low: float = 0.001, clip_high: float = 0.999) -> pd.DataFrame:
         """Clip measurment column to upper and lower quantilles defined in clip_low and clip_high.
 
-        Parameters:
+        Arguments:
             clip_low: float
                 lower clipping boundry (quantille)
 
@@ -146,7 +146,7 @@ class ARCOS:
         the signal is rescaled to the (0,1) range.
         The final signal is binarised using the binThr threshold
 
-        Parameters:
+        Arguments:
             smoothK: int, default = 3
                 Size of the short-term median smoothing filter.
 
@@ -186,7 +186,7 @@ class ARCOS:
         applys this to every timeframe and subsequently connects
         collective events between frames located within eps distance of each other.
 
-        Parameters:
+        Arguments:
             eps: float
                 The maximum distance between two samples for one to be considered as in
                 the neighborhood of the other.

@@ -35,8 +35,8 @@ class detrender:
     ) -> None:
         """Smooth and de-trend input data.
 
-        Parameters:
-            x: np.ndarray
+        Arguments:
+            x: pd.DataFrame
                 array with the time series data for smoothing.
 
             smoothK: int, default = 3
@@ -53,6 +53,12 @@ class detrender:
 
             biasMet: str
                 De-trending method, one of ['runmed', 'lm', 'none'].
+
+            colMeas: str
+                Measurment column in x.
+
+            colGroup: str
+                Id column in x.
         """
         # check if biasmethod contains one of these three types
         biasMet_types = ["runmed", "lm", "none"]
@@ -151,7 +157,7 @@ class binData(detrender):
     ) -> None:
         """Smooth, de-trend, and binarise the input data.
 
-        Parameters:
+        Arguments:
             x: pandas Dataframe
                 array with the time series data for smoothing.
 

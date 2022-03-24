@@ -38,7 +38,7 @@ class detectCollev:
     ) -> None:
         """Constructs class with input parameters.
 
-        Parameters:
+        Arguments:
             input_data: pandas dataframe.
                 Input data to be processed. Must contain a binarized measurment column
 
@@ -138,7 +138,7 @@ class detectCollev:
     ) -> pd.DataFrame:
         """Select necessary input colums from input data into dataframe.
 
-        Parameters:
+        Arguments:
             data: pd.DataFrame
                 dataframe containing necessary columns
 
@@ -168,7 +168,7 @@ class detectCollev:
     def _filter_active(self, data: pd.DataFrame, bin_meas_col: Union[str, None]) -> pd.DataFrame:
         """Selects rows with binary value of greater than 0.
 
-        Parameters:
+        Arguments:
             data: pd.DataFrame
                 dataframe containing necessary columns
 
@@ -185,7 +185,7 @@ class detectCollev:
     def _dbscan(self, x: pd.DataFrame, collid_col: str) -> pd.DataFrame:
         """Dbscan method to run and merge the cluster id labels to the original dataframe.
 
-        Parameters:
+        Arguments:
             x: pandas dataframe
                 Dataframe with unique frame and position columns
 
@@ -206,7 +206,7 @@ class detectCollev:
     def _run_dbscan(self, data: pd.DataFrame, frame: str, clid_frame: str) -> pd.DataFrame:
         """Apply dbscan method to every group i.e. frame.
 
-        Parameters:
+        Arguments:
             data: pandas dataframe
                 must contain position columns and frame column
 
@@ -228,7 +228,7 @@ class detectCollev:
         """Make db_scan cluster id labels unique by adding the\
         cummulative sum of previous group to next group.
 
-        Parameters:
+        Arguments:
             db_data: pandas dataframe
                 dataframe returned by _run_dbscan function with non-unique cluster ids
             frame: str
@@ -261,7 +261,7 @@ class detectCollev:
         """Calculates nearest neighbour in from data_a\
         to data_b nearest_neighbours in data_b.
 
-        Parameters:
+        Arguments:
             data_a: pandas dataframe
                 Dataframe a containing position values
 
@@ -282,7 +282,7 @@ class detectCollev:
         """Tracks clusters detected with DBSCAN along a frame axis,\
         returns tracked collective events as a pandas dataframe.
 
-        Parameters:
+        Arguments:
             data: pandas.DataFrame
                 output from dbscan
             frame: str

@@ -21,13 +21,13 @@ class interpolation:
     def __init__(self, data: np.ndarray):
         """Interpolate nan values in a numpy array.
 
-        Parameters:
+        Arguments:
             data: numpy.ndarray
                 Array, where NaN should be replaced with interpolated values
         """
         self.data = data
 
-    def _nan_helper(self, y: np.ndarray) -> np.ndarray:
+    def _nan_helper(self, y: np.ndarray) -> tuple:
         """Helper to handle indices and logical indices of NaNs.
 
         Input:
@@ -65,7 +65,7 @@ class clipMeas:
     def __init__(self, data: np.ndarray) -> None:
         """Clips array to quantilles.
 
-        Parameters:
+        Arguments:
             data: numpy.ndarray
                 input array to be clipped
         """
@@ -74,7 +74,7 @@ class clipMeas:
     def _calculate_percentile(self, data: np.ndarray, clip_low: float, clip_high: float):
         """Calculate upper and lower quantille.
 
-        Parameters:
+        Arguments:
             clip_low: float
                 lower clipping boundry (quantille)
 
@@ -92,7 +92,7 @@ class clipMeas:
     def clip(self, clip_low: float = 0.001, clip_high: float = 0.999) -> np.ndarray:
         """Clip input array to upper and lower quantilles defined in clip_low and clip_high.
 
-        Parameters:
+        Arguments:
             clip_low: float
                 lower clipping boundry (quantille)
 

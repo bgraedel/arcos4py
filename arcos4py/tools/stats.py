@@ -19,7 +19,7 @@ class calcCollevStats:
     def _calculate_duration_size_group(self, data: pd.DataFrame, frame_column: str) -> pd.DataFrame:
         """Calculates duration and size for the collective event in the dataframe.
 
-        Parameters:
+        Arguments:
             data: pandas dataframe
                 filtered dataframe containing a single collective event
 
@@ -52,7 +52,7 @@ class calcCollevStats:
         """Applies self._calculate_duration_size_group() to every group\
         i.e. every collective event.
 
-        Parameters:
+        Arguments:
             data: pandas dataframe
                 dataframe containing unfiltered collective events
 
@@ -74,7 +74,7 @@ class calcCollevStats:
     def calculate(self, data: pd.DataFrame, frame_column: str, collid_column: str) -> pd.DataFrame:
         """Calculate statistics of collective events.
 
-        Parameters:
+        Arguments:
             data: pandas dataframe
                 filtered dataframe containing a single collective event
 

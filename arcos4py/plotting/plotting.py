@@ -18,7 +18,7 @@ class arcosPlots:
     def __init__(self, data: pd.DataFrame, frame: str, measurment: str, detrended: str, id: str):
         """Plot different arcos metrics such as detrended vs original data.
 
-        Parameters:
+        Arguments:
             data: pandas DataFrame
                 Dataframe containing ARCOS data
 
@@ -45,7 +45,7 @@ class arcosPlots:
     ) -> matplotlib.axes.Axes:
         """Method to plot detrended vs original data.
 
-        Parameters:
+        Arguments:
             n_samples: int
                 number of tracks to plot
 

@@ -27,6 +27,7 @@ def test_data():
 def test_interpolate_middle(test_data: pd.DataFrame):
 
     df, df_out = test_data
-    df['t'] = interpolation(df['t'].to_numpy()).interpolate()
+    interpolated_t = interpolation(df['t'].to_numpy()).interpolate()
+    df['t'] = interpolated_t
     df['t'] = df['t'].astype(int)
     assert_frame_equal(df, df_out)

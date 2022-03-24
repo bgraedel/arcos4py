@@ -12,8 +12,7 @@ from .stats import calcCollevStats
 
 class filterCollev:
     """Select Collective events that last longer than coll_duration\
-    and have a larger total size than coll_total_size.
-    """
+    and have a larger total size than coll_total_size."""
 
     def __init__(
         self,
@@ -23,7 +22,7 @@ class filterCollev:
     ):
         """Constructs filterCollev class with Parameters.
 
-        Parameters:
+        Arguments:
             data: pandas dataframe
                 dataframe with detected collective events
 
@@ -49,7 +48,7 @@ class filterCollev:
         to filter collective events that last longer than\
         min_duration and are larger than min_size.
 
-        Parameters:
+        Arguments:
             data: pandas dataframe
                 dataframe containing unfiltered collective events.
 
@@ -79,7 +78,7 @@ class filterCollev:
         Method to filter collective events according to the
         parameters specified in the object instance.
 
-        Parameters:
+        Arguments:
             coll_duration: int
                 Minimal duration of collective events to be selected.
 
