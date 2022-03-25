@@ -18,7 +18,7 @@ from ._errors import columnError, epsError, minClSzError, noDataError, nPrevErro
 class detectCollev:
     """Identifies and tracks collective signalling events.
 
-    Requires binarized measurment column.
+    Requires binarized measurement column.
     Makes use of the dbscan algorithm,
     applys this to every timeframe and subsequently connects
     collective events between frames located within eps distance of each other.
@@ -40,7 +40,7 @@ class detectCollev:
 
         Arguments:
             input_data: pandas dataframe.
-                Input data to be processed. Must contain a binarized measurment column
+                Input data to be processed. Must contain a binarized measurement column
 
             eps: float
                 The maximum distance between two samples for one to be considered as in

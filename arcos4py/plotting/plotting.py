@@ -15,7 +15,7 @@ import pandas as pd
 class arcosPlots:
     """Plot different arcos metrics such as detrended vs original data."""
 
-    def __init__(self, data: pd.DataFrame, frame: str, measurment: str, detrended: str, id: str):
+    def __init__(self, data: pd.DataFrame, frame: str, measurement: str, detrended: str, id: str):
         """Plot different arcos metrics such as detrended vs original data.
 
         Arguments:
@@ -25,8 +25,8 @@ class arcosPlots:
             frame: str
                 frame column in data
 
-            measurment: str
-                measurment column in data
+            measurement: str
+                measurement column in data
 
             detrended: str
                 column with detrended data
@@ -35,7 +35,7 @@ class arcosPlots:
                 track id column
         """
         self.data = data
-        self.measurment = measurment
+        self.measurement = measurement
         self.detrended = detrended
         self.id = id
         self.frame = frame
@@ -69,7 +69,7 @@ class arcosPlots:
         fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=plotsize, sharey=True)
 
         for (key, ax) in zip(grouped.groups.keys(), axes.flatten()):
-            grouped.get_group(key).plot(x=self.frame, y=[self.measurment, self.detrended], ax=ax)
+            grouped.get_group(key).plot(x=self.frame, y=[self.measurement, self.detrended], ax=ax)
             ax.get_legend().remove()
 
         handles, labels = ax.get_legend_handles_labels()

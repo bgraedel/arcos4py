@@ -27,7 +27,7 @@ ts.interpolate_measurements()
 
 #### Clip measurement to provided quantile range
 
-Clipping can be performed to remove extreme outliers from the dataset, but is not necessary.
+Clipping can be performed to remove extreme outliers from the dataset, but it is not necessary.
 
 ```
 ts.clip_meas(clip_low: = 0.001, clip_high=0.999)
@@ -40,7 +40,7 @@ Rescaling and detrending are optional for the algorithm to work but recommended.
 However, ARCOS requires binarized data to detect and track collective event clusters. Binarization is done by setting a threshold (binThr) and defining measurement below this threshold as 0 and above as 1.
 
 ```
-ts.bin_measurments(smoothK: int = 3, biasK = 5, peakThr = 1,binThr = 1, polyDeg = 1, biasMet = "runmed",)
+ts.bin_measurements(smoothK: int = 3, biasK = 5, peakThr = 1,binThr = 1, polyDeg = 1, biasMet = "runmed",)
 
 ```
 

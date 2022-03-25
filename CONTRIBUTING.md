@@ -40,9 +40,8 @@ The best way to send feedback is to file an issue at https://github.com/bgraedel
 If you are proposing a feature:
 
 * Explain in detail how it would work.
-* Keep the scope as narrow as possible, to make it easier to implement.
-* Remember that this is a volunteer-driven project, and that contributions
-  are welcome :)
+* Keep the scope as narrow as possible to make it easier to implement.
+* Remember that this is a volunteer-driven project and that contributions are welcome :)
 
 ## Get Started!
 
@@ -95,7 +94,7 @@ Before you submit a pull request, check that it meets these guidelines:
 2. If the pull request adds functionality, the docs should be updated. Put
    your new functionality into a function with a docstring, and add the
    feature to the list in README.md.
-3. The pull request should work for Python 3.7, 3.8 and 3.9. Check
+3. The pull request should work for Python 3.7, 3.8, and 3.9. Check
    https://github.com/bgraedel/arcos4py/actions
    and make sure that the tests pass for all supported Python versions.
 
@@ -110,7 +109,7 @@ To run a subset of tests.
 
 ## Deploying
 
-A reminder for the maintainers on how to deploy.
+A reminder for the maintainers on how to deploy:
 Make sure all your changes are committed (including an entry in CHANGELOG.md).
 Then run:
 
