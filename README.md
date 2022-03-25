@@ -9,7 +9,7 @@
 
 
 A python package to detect collective Spatio-temporal phenomena
-
+Packag is still under active development
 
 * Documentation: <https://bgraedel.github.io/arcos4py>
 * GitHub: <https://github.com/bgraedel/arcos4py>

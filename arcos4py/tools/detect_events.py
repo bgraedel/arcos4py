@@ -258,7 +258,7 @@ class detectCollev:
         data_a: pd.DataFrame,
         data_b: pd.DataFrame,
         nbr_nearest_neighbours: int = 1,
-    ) -> tuple:
+    ):
         """Calculates nearest neighbour in from data_a\
         to data_b nearest_neighbours in data_b.
 

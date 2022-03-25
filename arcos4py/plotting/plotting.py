@@ -46,13 +46,13 @@ class arcosPlots:
         """Method to plot detrended vs original data.
 
         Arguments:
-            n_samples:
+            n_samples: int,
                 Number of tracks to plot.
 
             subplots:
                 Number of subplots, should be approx. one per sample.
 
-            plotsize: tuple
+            plotsize:
                 Size of generated plot.
 
         Returns:

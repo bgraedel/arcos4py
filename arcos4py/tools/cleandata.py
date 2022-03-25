@@ -27,7 +27,7 @@ class interpolation:
         """
         self.data = data
 
-    def _nan_helper(self, y: np.ndarray) -> tuple:
+    def _nan_helper(self, y: np.ndarray):
         """Helper to handle indices and logical indices of NaNs.
 
         Input:
