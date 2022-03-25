@@ -9,6 +9,7 @@ Example:
 from typing import Union
 
 import pandas as pd
+from numpy import int64
 from scipy.spatial import KDTree
 from sklearn.cluster import DBSCAN
 
@@ -249,7 +250,7 @@ class detectCollev:
         db_data = db_max[[frame, "PreviouMax_cumsum"]].merge(db_data, on=frame)
         db_data[self.clidFrame] += db_data["PreviouMax_cumsum"]
         db_data = db_data.drop(columns=["PreviouMax_cumsum"])
-        db_data[clid] = db_data[clid_frame]
+        db_data[clid] = db_data[clid_frame].astype(int64)
         return db_data
 
     def _nearest_neighbour(
@@ -357,7 +358,6 @@ class detectCollev:
             self.pos_cols_inputdata,
             self.bin_meas_column,
         )
-        print(filtered_cols)
         active_data = self._filter_active(filtered_cols, self.bin_meas_column)
         db_data = self._run_dbscan(
             data=active_data,
@@ -373,5 +373,9 @@ class detectCollev:
         tracked_events = self._link_clusters_between_frames(db_data, self.frame_column, self.clid_column)
         return_columns = self._get_export_columns()
         tracked_events = tracked_events[return_columns]
-        tracked_events = tracked_events.merge(self.input_data, how="left")
+        if self.clid_column in self.input_data.columns:
+            df_to_merge = self.input_data.drop(columns=[self.clid_column])
+        else:
+            df_to_merge = self.input_data
+        tracked_events = tracked_events.merge(df_to_merge, how="left")
         return tracked_events

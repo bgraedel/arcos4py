@@ -38,7 +38,7 @@ Installation
 ------------
 The arcos python package can be installed with:
 
-        pip install arcos
+        pip install arcos4py
 
 ## Credits
 

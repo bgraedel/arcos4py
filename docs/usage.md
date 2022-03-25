@@ -11,6 +11,7 @@ import arcos4py
 To use the main class, generate a new class instance of ARCOS
 
 ```
+from arcos4py import ARCOS
 ts = ARCOS(data,["x"], 'time', 'id', 'meas', 'clTrackID')
 ```
 Data has to be a time-series provided as a pandas DataFrame in the long format, containing at least a measurement column, a frame/index column, and an id column.
