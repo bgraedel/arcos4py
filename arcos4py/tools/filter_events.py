@@ -23,14 +23,14 @@ class filterCollev:
         """Constructs filterCollev class with Parameters.
 
         Arguments:
-            data: pandas dataframe
-                dataframe with detected collective events
+            data: DataFrame,
+                With detected collective events.
 
-            frame_column: str
-                string indicating the frame column in data
+            frame_column: str,
+                Indicating the frame column in data.
 
-            collid_column: str
-                string indicating the collective event id column in data
+            collid_column: str,
+                Indicating the collective event id column in data.
         """
         self.data = data
         self.frame_column = frame_column
@@ -49,19 +49,19 @@ class filterCollev:
         min_duration and are larger than min_size.
 
         Arguments:
-            data: pandas dataframe
-                dataframe containing unfiltered collective events.
+            data: DataFrame,
+                Containing unfiltered collective events.
 
-            collev_id: str
-                string indicating the contained collective id column.
+            collev_stats: DataFrame,
+                Containing stats of collective events.
 
-            collev_stats: pd.DataFrame
-                Integer indicating the minimal collective event duration.
+            collev_id: str,
+                Indicating the contained collective id column.
 
-            min_duration: int
+            min_duration: int,
                 minimal duration of a collective event for it to be returned.
 
-            min_size: int
+            min_size: int,
                 minimal size for a collective event to be returned.
 
         Returns:
@@ -79,10 +79,10 @@ class filterCollev:
         parameters specified in the object instance.
 
         Arguments:
-            coll_duration: int
+            coll_duration: int,
                 Minimal duration of collective events to be selected.
 
-            coll_total_size: int
+            coll_total_size: int,
                 Minimal total size of collective events to be selected.
 
         Returns:

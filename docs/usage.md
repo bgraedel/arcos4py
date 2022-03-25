@@ -19,7 +19,7 @@ Data has to be a time-series provided as a pandas DataFrame in the long format, 
 ### Prepare the input data.
 
 #### interpolate Measurments
-If the measurement column contains missing values, running this method first to interpolate the data is necessary.
+If the measurement column contains missing values, run interpolate_measurements() first.
 
 ```
 ts.interpolate_measurements()
@@ -38,7 +38,7 @@ ts.clip_meas(clip_low: = 0.001, clip_high=0.999)
 
 Rescaling and detrending are optional for the algorithm to work but recommended. There are three options available: ['none', 'lm', 'runmed']. Rumned is the default.
 
-However, ARCOS requires binarized data to detect and track collective event clusters. Binarization is done by setting a threshold (binThr) and defining measurement below this threshold as 0 and above as 1.
+However, ARCOS requires binarized data to detect and track collective event clusters. Binarization is done by setting a threshold (binThr) and defining measurements below this threshold as 0 and above as 1.
 
 ```
 ts.bin_measurements(smoothK: int = 3, biasK = 5, peakThr = 1,binThr = 1, polyDeg = 1, biasMet = "runmed",)
@@ -51,6 +51,8 @@ ts.bin_measurements(smoothK: int = 3, biasK = 5, peakThr = 1,binThr = 1, polyDeg
 events_df = ts.trackCollev(eps = 1, minClsz = 1, nPrev = 1)
 
 ```
+
+TrackCollev returns a pandas DataFrame object containing a column with the collecive event id.
 
 ## Perform calculations without main class
 

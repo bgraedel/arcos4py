@@ -22,8 +22,8 @@ class interpolation:
         """Interpolate nan values in a numpy array.
 
         Arguments:
-            data: numpy.ndarray
-                Array, where NaN should be replaced with interpolated values
+            data: np.ndarray,
+                Where NaN should be replaced with interpolated values.
         """
         self.data = data
 
@@ -31,20 +31,20 @@ class interpolation:
         """Helper to handle indices and logical indices of NaNs.
 
         Input:
-            - y, 1d numpy array with possible NaNs
+            - y, 1d numpy array with possible NaNs.
 
         Output:
-            - nans, logical indices of NaNs
+            - nans, logical indices of NaNs.
             - index, a function, with signature indices= index(logical_indices),
-            to convert logical indices of NaNs to 'equivalent' indices
+            to convert logical indices of NaNs to 'equivalent' indices.
 
         Example:
             >>> # linear interpolation of NaNs
             >>> nans, x= nan_helper(y)
             >>> y[nans]= np.interp(x(nans), x(~nans), y[~nans])
 
-        Returns: numpy.ndarray
-            Returns interpolated input data
+        Returns:
+            Returns interpolated input data.
         """
         return np.isnan(y), lambda z: z.nonzero()[0]
 
@@ -52,7 +52,7 @@ class interpolation:
         """Interpolate nan and missing values.
 
         Returns:
-            interpolated input data
+            Interpolated input data.
         """
         nans, x = self._nan_helper(self.data)
         self.data[nans] = np.interp(x(nans), x(~nans), self.data[~nans])
@@ -66,8 +66,8 @@ class clipMeas:
         """Clips array to quantilles.
 
         Arguments:
-            data: numpy.ndarray
-                input array to be clipped
+            data: np.ndarray,
+                To be clipped.
         """
         self.data = data
 
@@ -75,14 +75,17 @@ class clipMeas:
         """Calculate upper and lower quantille.
 
         Arguments:
-            clip_low: float
-                lower clipping boundry (quantille)
+            data: np.ndarray,
+                To calculate upper and lower quantille on.
 
-            clip_high: float
-                upper clipping boundry (quantille)
+            clip_low: float,
+                Lower clipping boundry (quantille).
+
+            clip_high: float,
+                Upper clipping boundry (quantille).
 
         Returns:
-            array with lower quantille, array with upper quantille
+            Array with lower quantille, array with upper quantille.
 
         """
         quantille_low = np.quantile(data, clip_low, keepdims=True)
@@ -93,14 +96,14 @@ class clipMeas:
         """Clip input array to upper and lower quantilles defined in clip_low and clip_high.
 
         Arguments:
-            clip_low: float
-                lower clipping boundry (quantille)
+            clip_low: float,
+                Lower clipping boundry (quantille).
 
-            clip_high: float
-                upper clipping boundry (quantille)
+            clip_high: float,
+                Upper clipping boundry (quantille).
 
         Returns:
-            clipped array of input data
+            Clipped array of input data.
         """
         low, high = self._calculate_percentile(self.data, clip_low, clip_high)
         out = self.data.clip(low, high)

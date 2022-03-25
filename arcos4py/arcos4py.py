@@ -1,4 +1,4 @@
-"""Module to track and detect collective events.
+"""Main Module to track and detect collective events.
 
 Example:
     >>> from arcos4py import ARCOS
@@ -28,7 +28,7 @@ class ARCOS:
 
     Requires binarized measurement column, that can be generated with the
     bin_measurements method.
-    Tracking uses of the dbscan algorithm, applys this to every timeframe
+    Tracking makes use of the dbscan algorithm, which is applied to every frame
     and subsequently connects collective events between frames located
     within eps distance of each other.
     """
@@ -42,26 +42,27 @@ class ARCOS:
         measurement_column: str = 'meas',
         clid_column: str = 'clTrackID',
     ) -> None:
-        """Constructs class with provided parameters.
+        """Constructs class with provided arguments.
 
         Arguments:
-            data: pandas.DataFrame
-                Input Data of tracked timeseries containing position columns, a measurement and an object ID column
+            data: DataFrame,
+                Input Data of tracked timeseries in long format containing position columns,
+                a measurement and an object ID column.
 
-            posCols: list
-                dict containing positin column names (strings) inside data e.g. At least one dimension is required
+            posCols: dict,
+                Containing positin column names (strings) inside data e.g. At least one dimension is required
 
-            frame_column: str
-                String indicating the frame column in input_data
+            frame_column: str,
+                Indicating the frame column in input_data
 
-            id_column: str
-                String indicating the track id/id column in input_data
+            id_column: str,
+                Indicating the track id/id column in input_data
 
-            measurement_column: str
-                String indicating the measurement column in input_data
+            measurement_column: str,
+                Indicating the measurement column in input_data
 
-            clid_column: str
-                String indicating the column name containing the collective event ids
+            clid_column: str,
+                Indicating the column name containing the collective event ids
         """
         self.data = data
         self.posCols = posCols
@@ -94,7 +95,7 @@ class ARCOS:
             raise ValueError(f"Columns {input_columns} do not match with column in dataframe.")
 
     def interpolate_measurements(self) -> pd.DataFrame:
-        """Interpolates measurement column NaN's in place.
+        """Interpolates measurement columns NaN's in place.
 
         Returns:
             Dataframe with interpolated measurement column
@@ -105,14 +106,14 @@ class ARCOS:
         return self.data
 
     def clip_meas(self, clip_low: float = 0.001, clip_high: float = 0.999) -> pd.DataFrame:
-        """Clip measurement column to upper and lower quantilles defined in clip_low and clip_high.
+        """Clip measurement column to upper and lower quantiles defined in clip_low and clip_high.
 
         Arguments:
-            clip_low: float
-                lower clipping boundry (quantille)
+            clip_low:
+                Lower clipping boundry (quantile)
 
-            clip_high: float
-                upper clipping boundry (quantille)
+            clip_high:
+                Upper clipping boundry (quantile)
 
         Returns:
             Dataframe with inplace clipped measurement column
@@ -135,7 +136,7 @@ class ARCOS:
 
         First a short-term median filter with size smoothK
         is applied to remove fast noise from the time series.
-        If the de-trending method is set to \code{"none"},
+        If the de-trending method is set to "none",
         smoothing is applied on globally rescaled time series.
         The subsequent de-trending can be performed with a long-term median filter
         with the size biasK {biasMet = "runmed"}
@@ -147,19 +148,19 @@ class ARCOS:
         The final signal is binarised using the binThr threshold
 
         Arguments:
-            smoothK: int, default = 3
+            smoothK:
                 Size of the short-term median smoothing filter.
 
-            biasK: int, default = 51
+            biasK:
                 Size of the long-term de-trending median filter
 
-            peakThr: float, default = 0.2
+            peakThr:
                 Threshold for rescaling of the de-trended signal.
 
-            polyDeg: int, default = 1
+            polyDeg:
                 Sets the degree of the polynomial for lm fitting.
 
-            biasMet: str, default = 'runmed'
+            biasMet:
                 De-trending method, one of ['runmed', 'lm', 'none'].
 
         Returns:
@@ -187,16 +188,16 @@ class ARCOS:
         collective events between frames located within eps distance of each other.
 
         Arguments:
-            eps: float
+            eps:
                 The maximum distance between two samples for one to be considered as in
                 the neighborhood of the other.
                 This is not a maximum bound on the distances of points within a cluster.
                 Value also used to connect collective events across multiple frames.
 
-            minClsz: int
+            minClsz:
                 Minimum size for a cluster to be identified as a collective event
 
-            nPrev: int
+            nPrev:
                 Number of previous frames the tracking
                 algorithm looks back to connect collective events
 

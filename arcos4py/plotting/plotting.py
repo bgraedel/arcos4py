@@ -19,20 +19,20 @@ class arcosPlots:
         """Plot different arcos metrics such as detrended vs original data.
 
         Arguments:
-            data: pandas DataFrame
-                Dataframe containing ARCOS data
+            data: Dataframe
+                containing ARCOS data.
 
-            frame: str
-                frame column in data
+            frame: String
+                name of frame column in data.
 
-            measurement: str
-                measurement column in data
+            measurement: String
+                name of measurement column in data.
 
-            detrended: str
-                column with detrended data
+            detrended: String
+                name of detrended column with detrended data.
 
-            id: str
-                track id column
+            id: String
+                name of track id column.
         """
         self.data = data
         self.measurement = measurement
@@ -46,17 +46,17 @@ class arcosPlots:
         """Method to plot detrended vs original data.
 
         Arguments:
-            n_samples: int
-                number of tracks to plot
+            n_samples:
+                Number of tracks to plot.
 
-            subplots: tuple
-                number of subplots, should be approx. one per sample
+            subplots:
+                Number of subplots, should be approx. one per sample.
 
             plotsize: tuple
-                size of generated plot
+                Size of generated plot.
 
         Returns:
-            Matplotlib figure of detrended vs original data
+            Matplotlib figure of detrended vs original data.
 
         """
         vals = np.random.choice(self.data[self.id].unique(), n_samples, replace=False)
