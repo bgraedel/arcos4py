@@ -29,9 +29,9 @@ in the acinar morphogenesis (Ender et al., 2020), osteoblast regeneration (De Si
 Despite its focus on cell signaling, the framework can also be applied to other spatially correlated phenomena that occur over time.
 
 ### Todo's
--Add additionall plotting functions such as collective event duration, noodle plots for collective id tracks, measurment histogram etc.
--Add additionall tests for binarization and de-biasing modules.
--Add example processing to documentation with images of collective events.
+- Add additionall plotting functions such as collective event duration, noodle plots for collective id tracks, measurment histogram etc.
+- Add additionall tests for binarization and de-biasing modules.
+- Add example processing to documentation with images of collective events.
 
 Data Format
 -----------
