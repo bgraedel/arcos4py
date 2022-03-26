@@ -2,7 +2,7 @@
 
 __author__ = """Benjamin Graedel"""
 __email__ = "benjamin.graedel@unibe.ch"
-__version__ = '0.0.1'
+__version__ = '0.1.0'
 
 from .binarize_detrend import binData
 from .cleandata import clipMeas, interpolation
