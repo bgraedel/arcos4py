@@ -8,7 +8,7 @@ authors = ["Benjamin Graedel <benjamin.graedel@unibe.ch>"]
 readme = "README.md"
 license =  "MIT"
 classifiers=[
-    'Development Status :: 2 - Pre-Alpha',
+    'Development Status :: 2 - Alpha',
     'Intended Audience :: Developers',
     'License :: OSI Approved :: MIT License',
     'Natural Language :: English',
@@ -16,6 +16,8 @@ classifiers=[
     'Programming Language :: Python :: 3.7',
     'Programming Language :: Python :: 3.8',
     'Programming Language :: Python :: 3.9',
+    'Programming Language :: Python :: 3.10',
+
 ]
 packages = [
     { include = "arcos4py" },
@@ -49,7 +51,7 @@ mkdocs-autorefs = {version = "^0.2.1", optional = true}
 pre-commit = {version = "^2.12.0", optional = true}
 toml = {version = "^0.10.2", optional = true}
 bump2version = {version = "^1.0.1", optional = true}
-Jinja2 = "<3.0.3"
+Jinja2 = { version = "<3.0.3", optional = true}
 PyYAML = { version = "^6.0", optional = true}
 
 [tool.poetry.extras]
@@ -67,6 +69,7 @@ test = [
 dev = ["tox", "pre-commit", "virtualenv", "pip", "twine", "toml", "bump2version"]
 
 doc = [
+    "Jinja2",
     "mkdocs",
     "mkdocs-include-markdown-plugin",
     "mkdocs-material",
@@ -78,7 +81,7 @@ doc = [
 [tool.black]
 line-length = 120
 skip-string-normalization = true
-target-version = ['py37', 'py38', 'py39']
+target-version = ['py37', 'py38', 'py39', 'py310']
 include = '\.pyi?$'
 exclude = '''
 /(

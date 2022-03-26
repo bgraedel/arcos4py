@@ -9,7 +9,8 @@
 
 
 A python package to detect collective Spatio-temporal phenomena
-Packag is still under active development
+Package is currently in testing phase, i.e. additional features will be added such as additional plotting functionallity.
+This also means that functionallity might change in the feature.
 
 * Documentation: <https://bgraedel.github.io/arcos4py>
 * GitHub: <https://github.com/bgraedel/arcos4py>
@@ -26,6 +27,11 @@ They have been demonstrated to play an important role in the maintenance of epit
 in the acinar morphogenesis (Ender et al., 2020), osteoblast regeneration (De Simone et al., 2021), and in the coordination of collective cell migration (Aoki et al., 2017, Hino et al., 2020).
 
 Despite its focus on cell signaling, the framework can also be applied to other spatially correlated phenomena that occur over time.
+
+### Todo's
+-Add additionall plotting functions such as collective event duration, noodle plots for collective id tracks, measurment histogram etc.
+-Add additionall tests for binarization and de-biasing modules.
+-Add example processing to documentation with images of collective events.
 
 Data Format
 -----------
