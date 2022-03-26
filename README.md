@@ -8,7 +8,8 @@
 
 
 
-A python package to detect collective Spatio-temporal phenomena
+A python package to detect collective Spatio-temporal phenomena.
+
 Package is currently in testing phase, i.e. additional features will be added such as additional plotting functionallity.
 This also means that functionallity might change in the feature.
 
