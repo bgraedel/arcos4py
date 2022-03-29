@@ -61,6 +61,7 @@ ts.bin_measurements(smoothK: int = 1, biasK = 1, peakThr = 1,binThr = 1, polyDeg
 events_df = ts.trackCollev(eps = 1, minClsz = 1, nPrev = 1)
 print(events_df)
 ```
+
 |    | t | id | x                | y                | clTrackID | m | Position |
 |----|---|----|------------------|------------------|-----------|---|----------|
 | 0  | 2 | 41 | 4.15698907764003 | 3.91461390425413 | 1         | 1 | 0        |
@@ -68,7 +69,7 @@ print(events_df)
 | 2  | 3 | 40 | 3.08624924975602 | 4.193936843095   | 1         | 1 | 0        |
 | 3  | 3 | 41 | 3.99750905085216 | 3.9553900675078  | 1         | 1 | 0        |
 | 4  | 3 | 42 | 5.06006349489829 | 4.0631364410516  | 1         | 1 | 0        |
-| .. | . | .. | ..               | ..               | .         | . | .        |
+| .. | . | .. | ...              | ..               | .         | . | .        |
 
 
 TrackCollev returns a pandas DataFrame object containing a column with the collecive event id.
