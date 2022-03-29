@@ -15,7 +15,7 @@ from sklearn.preprocessing import PolynomialFeatures, minmax_scale
 class detrender:
     """Smooth and de-trend input data.
 
-    First a short-term median filter with size smoothK is applied
+    First, a short-term median filter with size smoothK is applied
     to remove fast noise from the time series.
     The subsequent de-trending can be performed with a long-term median filter
     with the size biasK {biasMet = "runmed"}
@@ -40,10 +40,10 @@ class detrender:
                 Time series data for smoothing.
 
             smoothK: int,
-                Representing size of the short-term median smoothing filter.
+                Representing the size of the short-term median smoothing filter.
 
             biasK: int,
-                Representing size of the long-term de-trending median filter.
+                Representing the size of the long-term de-trending median filter.
 
             peakThr: float,
                 Threshold for rescaling of the de-trended signal.
@@ -55,7 +55,7 @@ class detrender:
                 Indicating de-trending method, one of ['runmed', 'lm', 'none'].
 
             colMeas: str,
-                Name of measurment column in x.
+                Name of measurement column in x.
 
             colGroup: str,
                 Name of id column in x.
@@ -115,7 +115,7 @@ class detrender:
     def detrend(self, data: pd.DataFrame, group_col: str, resc_col) -> pd.DataFrame:
         """Run detrinding on input data.
 
-        Method applies detrending to each group defined in group_col and
+        The method applies detrending to each group defined in group_col and
         outputs it into the resc_column.
 
         Returns:
@@ -159,7 +159,7 @@ class binData(detrender):
 
         Arguments:
             x: DataFrame,
-                The time series data for smoothing.
+                The time-series data for smoothing.
 
             smoothK: int,
                 Size of the short-term median smoothing filter.
@@ -180,7 +180,7 @@ class binData(detrender):
                 De-trending method, one of ['runmed', 'lm', 'none'].
 
             colMeas: str,
-                Measurment column in x.
+                Measurement column in x.
 
             colGroup: str,
                 Track id column in x.
@@ -204,7 +204,7 @@ class binData(detrender):
         """Runs binarization and detrending.
 
         If the bias Method is 'none', first it rescales the data to between [0,1], then
-        local smoothing is applied to the measurent by groups, followed by
+        local smoothing is applied to the measurement by groups, followed by
         binarization.
 
         If biasMeth is one of ['lm', 'runmed'], first the data is detrended locally with a

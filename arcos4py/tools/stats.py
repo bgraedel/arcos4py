@@ -3,7 +3,7 @@
 Example:
     >>> from arcos4py.tools import calcCollevStats
     >>> test = calcCollevStats()
-    >>> out = test().run(data=data,frame_column = "frame", collid_column = "collid")
+    >>> out = test().run(data = data,frame_column = "frame", collid_column = "collid")
 """
 
 import pandas as pd
@@ -20,11 +20,11 @@ class calcCollevStats:
         """Calculates duration and size for the collective event in the dataframe.
 
         Arguments:
-            data:
-                Filtered dataframe containing a single collective event.
+            data: DataFrame,
+                Containing a single collective event.
 
-            frame_column:
-                String indicating the contained frame column.
+            frame_column: str,
+                Indicating the contained frame column.
 
         Returns:
             Dataframe containing duration, tot_size, min_size and
@@ -76,13 +76,13 @@ class calcCollevStats:
 
         Arguments:
             data: DataFrame,
-                Containing a collective events.
+                Containing collective events.
 
             frame_column: str,
-                String indicating the frame column in data.
+                Indicating the frame column in data.
 
             collid_column: str,
-                String indicating the collective event id column in data.
+                Indicating the collective event id column in data.
 
         Returns:
             Dataframe containing collective events stats.

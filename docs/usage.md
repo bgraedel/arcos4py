@@ -12,9 +12,19 @@ To use the main class, generate a new class instance of ARCOS
 
 ```
 from arcos4py import ARCOS
-ts = ARCOS(data,["x"], 'time', 'id', 'meas', 'clTrackID')
+ts = ARCOS(data,["x, y"], 't', 'id', 'm', 'clTrackID')
 ```
 Data has to be a time-series provided as a pandas DataFrame in the long format, containing at least a measurement column, a frame/index column, and an id column.
+
+|    | t | x                  | y                   | m | id | Position |
+|----|---|--------------------|---------------------|---|----|----------|
+| 0  | 1 | 0.228724716134052  | -0.158939933368972  | 0 | 1  | 0        |
+| 1  | 1 | 0.880322831777765  | -0.117711550077457  | 0 | 2  | 0        |
+| 2  | 1 | 1.93057074895645   | 0.0786037381335957  | 0 | 3  | 0        |
+| 3  | 1 | 2.95877070488632   | 0.189801493820322   | 0 | 4  | 0        |
+| 4  | 1 | 3.90293266588805   | -0.0413798066471996 | 0 | 5  | 0        |
+| 5  | 1 | 4.90527200547719   | 0.0677665301377277  | 0 | 6  | 0        |
+| .. | . | ...............    | .................   | . | .. | .        |
 
 ### Prepare the input data.
 
@@ -41,7 +51,7 @@ Rescaling and detrending are optional for the algorithm to work but recommended.
 However, ARCOS requires binarized data to detect and track collective event clusters. Binarization is done by setting a threshold (binThr) and defining measurements below this threshold as 0 and above as 1.
 
 ```
-ts.bin_measurements(smoothK: int = 3, biasK = 5, peakThr = 1,binThr = 1, polyDeg = 1, biasMet = "runmed",)
+ts.bin_measurements(smoothK: int = 1, biasK = 1, peakThr = 1,binThr = 1, polyDeg = 1, biasMet = "runmed",)
 
 ```
 
@@ -49,8 +59,17 @@ ts.bin_measurements(smoothK: int = 3, biasK = 5, peakThr = 1,binThr = 1, polyDeg
 
 ```
 events_df = ts.trackCollev(eps = 1, minClsz = 1, nPrev = 1)
-
+print(events_df)
 ```
+|    | t | id | x                | y                | clTrackID | m | Position |
+|----|---|----|------------------|------------------|-----------|---|----------|
+| 0  | 2 | 41 | 4.15698907764003 | 3.91461390425413 | 1         | 1 | 0        |
+| 1  | 3 | 32 | 3.89042167730585 | 2.98886585399189 | 1         | 1 | 0        |
+| 2  | 3 | 40 | 3.08624924975602 | 4.193936843095   | 1         | 1 | 0        |
+| 3  | 3 | 41 | 3.99750905085216 | 3.9553900675078  | 1         | 1 | 0        |
+| 4  | 3 | 42 | 5.06006349489829 | 4.0631364410516  | 1         | 1 | 0        |
+| .. | . | .. | ..               | ..               | .         | . | .        |
+
 
 TrackCollev returns a pandas DataFrame object containing a column with the collecive event id.
 

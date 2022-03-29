@@ -1,4 +1,4 @@
-"""Module containing clipping and interplation classes.
+"""Module containing clipping and interpolation classes.
 
 Example:
     >>> # Interpolation
@@ -76,16 +76,16 @@ class clipMeas:
 
         Arguments:
             data: np.ndarray,
-                To calculate upper and lower quantille on.
+                To calculate upper and lower quantile on.
 
             clip_low: float,
-                Lower clipping boundry (quantille).
+                Lower clipping boundary (quantile).
 
             clip_high: float,
                 Upper clipping boundry (quantille).
 
         Returns:
-            Array with lower quantille, array with upper quantille.
+            Array with lower quantile and array with upper quantile.
 
         """
         quantille_low = np.quantile(data, clip_low, keepdims=True)
@@ -93,17 +93,17 @@ class clipMeas:
         return quantille_low, quantille_high
 
     def clip(self, clip_low: float = 0.001, clip_high: float = 0.999) -> np.ndarray:
-        """Clip input array to upper and lower quantilles defined in clip_low and clip_high.
+        """Clip input array to upper and lower quantiles defined in clip_low and clip_high.
 
         Arguments:
             clip_low: float,
-                Lower clipping boundry (quantille).
+                Lower clipping boundary (quantile).
 
             clip_high: float,
                 Upper clipping boundry (quantille).
 
         Returns:
-            Clipped array of input data.
+            A clipped array of the input data.
         """
         low, high = self._calculate_percentile(self.data, clip_low, clip_high)
         out = self.data.clip(low, high)
