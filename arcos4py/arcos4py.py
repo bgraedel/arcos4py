@@ -1,6 +1,6 @@
-"""Main Module of arcos4py
+"""Main Module of arcos4py.
 
-This module contains the ARCOS class, which implements most functionallity of arcos4py 
+This module contains the ARCOS class, which implements most functionallity of arcos4py
 to prepare data and to detect and track collective events.
 
 Example:
@@ -187,6 +187,7 @@ class ARCOS:
 
     def trackCollev(self, eps: float = 1, minClsz: int = 1, nPrev: int = 1) -> pd.DataFrame:
         """Requires binarized measurement column.
+
         Makes use of the dbscan algorithm,
         applies this to every timeframe and subsequently connects
         collective events between frames located within eps distance of each other.
