@@ -1,0 +1,4 @@
+Collecting poetry-core
+  Using cached poetry_core-1.0.8-py2.py3-none-any.whl (425 kB)
+Installing collected packages: poetry-core
+Successfully installed poetry-core-1.0.8
