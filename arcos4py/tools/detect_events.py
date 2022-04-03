@@ -318,14 +318,10 @@ class detectCollev:
                         subset_index_list = list(colid_subset.index.values)
                         # propagate cluster id from previous frame
                         # if multiple clusters in the eps of nearest neighbour
-                        if len(prev_clusternbr_eps_unique) > 1:
-                            data.loc[subset_index_list, colid] = prev_cluster_nbr_eps.values
+                        if len(prev_clusternbr_eps_unique) > 0:
+                            data.loc[subset_index_list, colid] = prev_cluster_nbr_all.values
                             # if only one cluster in previous
                             # frame is close to current frame
-                        else:
-                            data.loc[subset_index_list, colid] = [
-                                prev_clusternbr_eps_unique for i in range(len(colid_subset))
-                            ]
 
         data[colid] = data.groupby(colid).ngroup() + 1
         return data

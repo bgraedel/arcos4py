@@ -87,5 +87,7 @@ class calcCollevStats:
         Returns:
             Dataframe containing collective events stats.
         """
+        if data.empty:
+            return data
         colev_stats = self._get_collev_duration(data, frame_column, collid_column)
         return colev_stats

@@ -104,7 +104,7 @@ class ARCOS:
             Dataframe with interpolated measurement column.
         """
         meas_interp = interpolation(self.data).interpolate()
-        self.data[self.measurement_column] = meas_interp
+        self.data = meas_interp
         return self.data
 
     def clip_meas(self, clip_low: float = 0.001, clip_high: float = 0.999) -> pd.DataFrame:
