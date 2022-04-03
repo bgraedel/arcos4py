@@ -103,8 +103,7 @@ class ARCOS:
         Returns:
             Dataframe with interpolated measurement column.
         """
-        meas_column = self.data[self.measurement_column].to_numpy()
-        meas_interp = interpolation(meas_column).interpolate()
+        meas_interp = interpolation(self.data).interpolate()
         self.data[self.measurement_column] = meas_interp
         return self.data
 
