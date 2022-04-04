@@ -23,6 +23,22 @@ class detectCollev:
     Makes use of the dbscan algorithm,
     applies this to every timeframe and subsequently connects
     collective events between frames located within eps distance of each other.
+
+    Attributes:
+        input_data (DataFrame): Input data to be processed. Must contain a binarized measurement column.
+        eps (float): The maximum distance between two samples for one to be considered as in
+            the neighbourhood of the other.
+            This is not a maximum bound on the distances of points within a cluster.
+            Value is also used to connect collective events across multiple frames.
+        minClSz (int): Minimum size for a cluster to be identified as a collective event.
+        nPrev (int): Number of previous frames the tracking
+            algorithm looks back to connect collective events.
+        posCols (list): List of position columns contained in the data.
+            Must at least contain one
+        frame_column (str): Indicating the frame column in input_data.
+        id_column (str): Indicating the track id/id column in input_data.
+        bin_meas_column (str): Indicating the bin_meas_column in input_data or None.
+        clid_column (str): Indicating the column name containing the ids of collective events.
     """
 
     def __init__(
@@ -40,37 +56,20 @@ class detectCollev:
         """Constructs class with input parameters.
 
         Arguments:
-            input_data: DataFrame,
-                Input data to be processed. Must contain a binarized measurement column.
-
-            eps: float,
-                The maximum distance between two samples for one to be considered as in
+            input_data (DataFrame): Input data to be processed. Must contain a binarized measurement column.
+            eps (float): The maximum distance between two samples for one to be considered as in
                 the neighbourhood of the other.
                 This is not a maximum bound on the distances of points within a cluster.
                 Value is also used to connect collective events across multiple frames.
-
-            minClSz: int,
-                Minimum size for a cluster to be identified as a collective event.
-
-            nPrev: int,
-                Number of previous frames the tracking
+            minClSz (int): Minimum size for a cluster to be identified as a collective event.
+            nPrev (int): Number of previous frames the tracking
                 algorithm looks back to connect collective events.
-
-            posCols: list,
-                List of position columns contained in the data.
+            posCols (list): List of position columns contained in the data.
                 Must at least contain one
-
-            frame_column: str,
-                Indicating the frame column in input_data.
-
-            id_column: str,
-                Indicating the track id/id column in input_data.
-
-            bin_meas_column: str,
-                Indicating the bin_meas_column in input_data or None.
-
-            clid_column: str,
-                Indicating the column name containing the ids of collective events.
+            frame_column (str): Indicating the frame column in input_data.
+            id_column (str): Indicating the track id/id column in input_data.
+            bin_meas_column (str): Indicating the bin_meas_column in input_data or None.
+            clid_column (str): Indicating the column name containing the ids of collective events.
         """
         # assign some variables passed in as arguments to the object
         self.input_data = input_data
@@ -140,22 +139,13 @@ class detectCollev:
         """Select necessary input colums from input data into dataframe.
 
         Arguments:
-            data: DataFrame,
-                Containing necessary columns.
+            data (DataFrame): Containing necessary columns.
+            frame_col (str): Frame column in data.
+            id_col (str): Id column in data.
+            pos_col (list): string representation of position columns in data.
+            bin_col (str): Name of binary column.
 
-            frame_col: str
-                Frame column in data.
-
-            id_col: str
-                Id column in data.
-
-            pos_col: list,
-                string representation of position columns in data.
-
-            bin_col: str,
-                Name of binary column.
-
-        Returns:
+        Returns (DataFrame):
             Filtered columns necessary for calculation.
         """
         if bin_col is None:
@@ -170,13 +160,10 @@ class detectCollev:
         """Selects rows with binary value of greater than 0.
 
         Arguments:
-            data: DataFrame,
-                Dataframe containing necessary columns.
+            data (DataFrame): Dataframe containing necessary columns.
+            bin_meas_col (str|None): Either name of the binary column or None if no such column exists.
 
-            bin_meas_col: str/None,
-                Either name of the binary column or None if no such column exists.
-
-        Returns:
+        Returns (DataFrame):
             Filtered pandas DataFrame.
         """
         if bin_meas_col is not None:
@@ -187,13 +174,10 @@ class detectCollev:
         """Dbscan method to run and merge the cluster id labels to the original dataframe.
 
         Arguments:
-            x: DataFrame,
-                With unique frame and position columns.
+            x (DataFrame): With unique frame and position columns.
+            collid_col (str): Column to be created containing cluster-id labels.
 
-            collid_col: str,
-                Column to be created containing cluster-id labels.
-
-        Returns:
+        Returns (Dataframe):
             Dataframe with added collective id column detected by DBSCAN.
         """
         pos_array = x[self.pos_cols_inputdata]
@@ -208,16 +192,11 @@ class detectCollev:
         """Apply dbscan method to every group i.e. frame.
 
         Arguments:
-            data: DataFrame,
-                Must contain position columns and frame columns.
+            data (DataFrame): Must contain position columns and frame columns.
+            frame (str): Name of frame column in data.
+            clid_frame (str): column to be created containing the output cluster ids from dbscan.
 
-            frame: str,
-                Name of frame column in data.
-
-            clid_frame: str,
-                column to be created containing the output cluster ids from dbscan.
-
-        Returns:
+        Returns (Dataframe):
             Dataframe with added collective id column detected by DBSCAN for every frame.
         """
         data_gb = data.groupby([frame])
@@ -230,16 +209,12 @@ class detectCollev:
         cummulative sum of previous group to next group.
 
         Arguments:
-            db_data: DataFrame,
-                Returned by _run_dbscan function with non-unique cluster ids.
-            frame: str,
-                Frame column.
-            clid_frame: str,
-                Column name of cluster-id per frame.
-            clid: str,
-                Column name of unique cluster ids to be returned.
+            db_data (DataFrame): Returned by _run_dbscan function with non-unique cluster ids.
+            frame (str): Frame column.
+            clid_frame (str): Column name of cluster-id per frame.
+            clid (str): Column name of unique cluster ids to be returned.
 
-        Returns:
+        Returns (Dataframe):
             Dataframe with unique collective events.
         """
         db_data_n = db_data[[clid_frame, frame]]
@@ -263,16 +238,11 @@ class detectCollev:
         to data_b nearest_neighbours in data_b.
 
         Arguments:
-            data_a: DataFrame,
-                containing position values.
+            data_a (DataFrame): containing position values.
+            data_b (DataFrame): containing position values.
+            nbr_nearest_neighbours (int): of the number of nearest neighbours to be calculated.
 
-            data_b: DataFrame,
-                containing position values.
-
-            nbr_nearest_neighbours: int,
-                of the number of nearest neighbours to be calculated.
-
-        Returns:
+        Returns (tuple):
             Returns tuple of 2 arrays containing nearest neighbour indices and distances.
         """
         kdB = KDTree(data=data_a.values)
@@ -284,14 +254,11 @@ class detectCollev:
         returns tracked collective events as a pandas dataframe.
 
         Arguments:
-            data: DataFrame,
-                Output from dbscan.
-            frame: str,
-                Frame column.
-            colid: str,
-                Colid column.
+            data (DataFrame): Output from dbscan.
+            frame (str): Frame column.
+            colid (str): Colid column.
 
-        Returns:
+        Returns (Dataframe):
             Pandas dataframe with tracked collective ids.
         """
         # loop over all frames to link detected clusters iteratively
@@ -342,7 +309,7 @@ class detectCollev:
         5. Tracks collective events i.e. links cluster ids across frames.
         6. Creates final DataFrame.
 
-        Returns:
+        Returns (Dataframe):
             Dataframe with tracked collective events is returned.
         """
         filtered_cols = self._select_necessary_columns(

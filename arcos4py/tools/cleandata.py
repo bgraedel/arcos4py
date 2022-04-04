@@ -17,22 +17,26 @@ import pandas as pd
 
 
 class interpolation:
-    """Interpolate nan values in a numpy array."""
+    """Interpolate nan values in a numpy array.
+
+    Attributes:
+        data (DataFrame): Where NaN should be replaced with interpolated values.
+    """
 
     def __init__(self, data: pd.DataFrame):
-        """Interpolate nan values in a numpy array.
+        """Interpolate nan values in a pandas dataframe.
+
+        Uses pandas.interpolate with liner interpolation.
 
         Arguments:
-            data: pd.DataFrame,
-                Where NaN should be replaced with interpolated values.
+            data (DataFrame): Where NaN should be replaced with interpolated values.
         """
         self.data = data
 
     def interpolate(self) -> pd.DataFrame:
         """Interpolate nan and missing values.
 
-        Returns:
-            Interpolated input data.
+        Returns (DataFrame): Interpolated input data.
         """
         self.data = self.data.interpolate(axis=0)
 
@@ -46,8 +50,7 @@ class clipMeas:
         """Clips array to quantilles.
 
         Arguments:
-            data: np.ndarray,
-                To be clipped.
+            data (ndarray): To be clipped.
         """
         self.data = data
 
@@ -55,14 +58,9 @@ class clipMeas:
         """Calculate upper and lower quantille.
 
         Arguments:
-            data: np.ndarray,
-                To calculate upper and lower quantile on.
-
-            clip_low: float,
-                Lower clipping boundary (quantile).
-
-            clip_high: float,
-                Upper clipping boundry (quantille).
+            data (ndarray): To calculate upper and lower quantile on.
+            clip_low (float): Lower clipping boundary (quantile).
+            clip_high (float): Upper clipping boundry (quantille).
 
         Returns:
             Array with lower quantile and array with upper quantile.
@@ -76,14 +74,10 @@ class clipMeas:
         """Clip input array to upper and lower quantiles defined in clip_low and clip_high.
 
         Arguments:
-            clip_low: float,
-                Lower clipping boundary (quantile).
+            clip_low (float): Lower clipping boundary (quantile).
+            clip_high (float): Upper clipping boundry (quantille).
 
-            clip_high: float,
-                Upper clipping boundry (quantille).
-
-        Returns:
-            A clipped array of the input data.
+        Returns (ndarray): A clipped array of the input data.
         """
         low, high = self._calculate_percentile(self.data, clip_low, clip_high)
         out = self.data.clip(low, high)

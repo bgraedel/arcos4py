@@ -34,6 +34,16 @@ class ARCOS:
     Tracking makes use of the dbscan algorithm, which is applied to every frame
     and subsequently connects collective events between frames located
     within eps distance of each other.
+
+    Attributes:
+        data (DataFrame): Data of tracked time-series in "long format". Can be used to
+            acess modified dataframe at any point.
+        posCols (list): List containing position column names strings inside data e.g.
+            At least one dimension is required.
+        frame_column (str): Indicating the frame column in input_data.
+        id_column (str): Indicating the track id/id column in input_data.
+        measurement_column (str): Indicating the measurement column in input_data.
+        clid_column (str): Indicating the column name containing the collective event ids.
     """
 
     def __init__(
@@ -48,24 +58,14 @@ class ARCOS:
         """Constructs class with provided arguments.
 
         Arguments:
-            data: DataFrame,
-                Input Data of tracked time-series in "long format" containing position columns,
+            data (DataFrame): Input Data of tracked time-series in "long format" containing position columns,
                 a measurement and an object ID column.
-
-            posCols: dict,
-                Containing position column names (strings) inside data e.g. At least one dimension is required.
-
-            frame_column: str,
-                Indicating the frame column in input_data.
-
-            id_column: str,
-                Indicating the track id/id column in input_data.
-
-            measurement_column: str,
-                Indicating the measurement column in input_data.
-
-            clid_column: str,
-                Indicating the column name containing the collective event ids.
+            posCols (list): List ontaining position column names strings inside data e.g.
+                At least one dimension is required.
+            frame_column (str): Indicating the frame column in input_data.
+            id_column (str): Indicating the track id/id column in input_data.
+            measurement_column (str): Indicating the measurement column in input_data.
+            clid_column (str): Indicating the column name containing the collective event ids.
         """
         self.data = data
         self.posCols = posCols
@@ -111,11 +111,9 @@ class ARCOS:
         """Clip measurement column to upper and lower quantiles defined in clip_low and clip_high.
 
         Arguments:
-            clip_low:
-                Lower clipping boundary (quantile).
+            clip_low (float): Lower clipping boundary (quantile).
 
-            clip_high:
-                Upper clipping boundary (quantile).
+            clip_high (float): Upper clipping boundary (quantile).
 
         Returns:
             Dataframe with in place clipped measurement column.
@@ -150,23 +148,12 @@ class ARCOS:
         The final signal is binarised using the binThr threshold
 
         Arguments:
-            smoothK: int,
-                Size of the short-term median smoothing filter.
-
-            biasK: int,
-                Size of the long-term de-trending median filter
-
-            peakThr: float,
-                Threshold for rescaling of the de-trended signal.
-
-            binThr: float,
-                Threshold for binary classification.
-
-            polyDeg: int,
-                Sets the degree of the polynomial for lm fitting.
-
-            biasMet: str,
-                De-trending method, one of ['runmed', 'lm', 'none'].
+            smoothK (int): Size of the short-term median smoothing filter.
+            biasK (int): Size of the long-term de-trending median filter
+            peakThr (float): Threshold for rescaling of the de-trended signal.
+            binThr (float): Threshold for binary classification.
+            polyDeg (int): Sets the degree of the polynomial for lm fitting.
+            biasMet (str): De-trending method, one of ['runmed', 'lm', 'none'].
 
         Returns:
             DataFrame with detrended/smoothed and binarized measurement column.
@@ -192,17 +179,12 @@ class ARCOS:
         collective events between frames located within eps distance of each other.
 
         Arguments:
-            eps: float,
-                The maximum distance between two samples for one to be considered as in
+            eps (float): The maximum distance between two samples for one to be considered as in
                 the neighbourhood of the other.
                 This is not a maximum bound on the distances of points within a cluster.
                 Value is also used to connect collective events across multiple frames.
-
-            minClsz: str,
-                The minimum size for a cluster to be identified as a collective event
-
-            nPrev: int,
-                Number of previous frames the tracking
+            minClsz (str): The minimum size for a cluster to be identified as a collective event
+            nPrev (int): Number of previous frames the tracking
                 algorithm looks back to connect collective events
 
         Returns:

@@ -12,7 +12,13 @@ from .stats import calcCollevStats
 
 class filterCollev:
     """Select Collective events that last longer than coll_duration\
-    and have a larger total size than coll_total_size."""
+    and have a larger total size than coll_total_size.
+
+    Attributes:
+        data (Dataframe): With detected collective events.
+        frame_column (str): Indicating the frame column in data.
+        collid_column (str): Indicating the collective event id column in data.
+    """
 
     def __init__(
         self,
@@ -23,14 +29,9 @@ class filterCollev:
         """Constructs filterCollev class with Parameters.
 
         Arguments:
-            data: DataFrame,
-                With detected collective events.
-
-            frame_column: str,
-                Indicating the frame column in data.
-
-            collid_column: str,
-                Indicating the collective event id column in data.
+            data (Dataframe): With detected collective events.
+            frame_column (str): Indicating the frame column in data.
+            collid_column (str): Indicating the collective event id column in data.
         """
         self.data = data
         self.frame_column = frame_column
@@ -49,22 +50,13 @@ class filterCollev:
         min_duration and are larger than min_size.
 
         Arguments:
-            data: DataFrame,
-                Containing unfiltered collective events.
+            data (DataFrame): Containing unfiltered collective events.
+            collev_stats (DataFrame): Containing stats of collective events.
+            collev_id (str): Indicating the contained collective id column.
+            min_duration (str): minimal duration of a collective event for it to be returned.
+            min_size (int): minimal size for a collective event to be returned.
 
-            collev_stats: DataFrame,
-                Containing stats of collective events.
-
-            collev_id: str,
-                Indicating the contained collective id column.
-
-            min_duration: int,
-                minimal duration of a collective event for it to be returned.
-
-            min_size: int,
-                minimal size for a collective event to be returned.
-
-        Returns:
+        Returns (Dataframe):
             Dataframe containing filtered collective events.
 
         """
@@ -79,13 +71,10 @@ class filterCollev:
         parameters specified in the object instance.
 
         Arguments:
-            coll_duration: int,
-                Minimal duration of collective events to be selected.
+            coll_duration (int): Minimal duration of collective events to be selected.
+            coll_total_size (int): Minimal total size of collective events to be selected.
 
-            coll_total_size: int,
-                Minimal total size of collective events to be selected.
-
-        Returns:
+        Returns (DataFrame):
             Returns pandas dataframe containing filtered collective events
         """
         if self.data.empty:

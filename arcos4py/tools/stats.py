@@ -20,13 +20,10 @@ class calcCollevStats:
         """Calculates duration and size for the collective event in the dataframe.
 
         Arguments:
-            data: DataFrame,
-                Containing a single collective event.
+            data (DataFrame): Containing a single collective event.
+            frame_column (str): Indicating the contained frame column.
 
-            frame_column: str,
-                Indicating the contained frame column.
-
-        Returns:
+        Returns (Dataframe):
             Dataframe containing duration, tot_size, min_size and
             max_size of the current collective event.
         """
@@ -53,16 +50,11 @@ class calcCollevStats:
         i.e. every collective event.
 
         Arguments:
-            data: DataFrame,
-                Containing unfiltered collective events.
+            data (DataFrame): Containing unfiltered collective events.
+            collev_id (str): Indicating the contained collective id column.
+            frame_column (str): Indicating the contained frame column.
 
-            collev_id: str,
-                Indicating the contained collective id column.
-
-            frame_column: str,
-                Indicating the contained frame column.
-
-        Returns:
+        Returns (DataFrame):
             DataFrame containing duration and tot_size of all collective events.
 
         """
@@ -75,14 +67,9 @@ class calcCollevStats:
         """Calculate statistics of collective events.
 
         Arguments:
-            data: DataFrame,
-                Containing collective events.
-
-            frame_column: str,
-                Indicating the frame column in data.
-
-            collid_column: str,
-                Indicating the collective event id column in data.
+            data (DataFrame): Containing collective events.
+            frame_column (str): Indicating the frame column in data.
+            collid_column (str): Indicating the collective event id column in data.
 
         Returns:
             Dataframe containing collective events stats.

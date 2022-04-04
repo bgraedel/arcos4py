@@ -20,6 +20,16 @@ class detrender:
     The subsequent de-trending can be performed with a long-term median filter
     with the size biasK {biasMet = "runmed"}
     or by fitting a polynomial of degree polyDeg {biasMet = "lm"}.
+
+    Attributes:
+        x (DataFrame): Time series data for smoothing.
+        smoothK (int): Representing the size of the short-term median smoothing filter.
+        biasK (int): Representing the size of the long-term de-trending median filter.
+        peakThr (float): Threshold for rescaling of the de-trended signal.
+        polyDeg (int): Sets the degree of the polynomial for lm fitting.
+        biasMet (str): Indicating de-trending method, one of ['runmed', 'lm', 'none'].
+        colMeas (str): Name of measurement column in x.
+        colGroup (str): Name of id column in x.
     """
 
     def __init__(
@@ -36,29 +46,14 @@ class detrender:
         """Smooth and de-trend input data.
 
         Arguments:
-            x: DataFrame,
-                Time series data for smoothing.
-
-            smoothK: int,
-                Representing the size of the short-term median smoothing filter.
-
-            biasK: int,
-                Representing the size of the long-term de-trending median filter.
-
-            peakThr: float,
-                Threshold for rescaling of the de-trended signal.
-
-            polyDeg: int,
-                Sets the degree of the polynomial for lm fitting.
-
-            biasMet: str,
-                Indicating de-trending method, one of ['runmed', 'lm', 'none'].
-
-            colMeas: str,
-                Name of measurement column in x.
-
-            colGroup: str,
-                Name of id column in x.
+            x (DataFrame): Time series data for smoothing.
+            smoothK (int): Representing the size of the short-term median smoothing filter.
+            biasK (int): Representing the size of the long-term de-trending median filter.
+            peakThr (float): Threshold for rescaling of the de-trended signal.
+            polyDeg (int): Sets the degree of the polynomial for lm fitting.
+            biasMet (str): Indicating de-trending method, one of ['runmed', 'lm', 'none'].
+            colMeas (str): Name of measurement column in x.
+            colGroup (str): Name of id column in x.
         """
         # check if biasmethod contains one of these three types
         biasMet_types = ["runmed", "lm", "none"]
@@ -118,8 +113,7 @@ class detrender:
         The method applies detrending to each group defined in group_col and
         outputs it into the resc_column.
 
-        Returns:
-            Dataframe containing rescaled column.
+        Returns (DataFrame): Dataframe containing rescaled column.
         """
         data_gp = data.groupby([group_col])
         data = data_gp.apply(lambda y: self._run_detrend(y, resc_col))
@@ -158,32 +152,15 @@ class binData(detrender):
         """Smooth, de-trend, and binarise the input data.
 
         Arguments:
-            x: DataFrame,
-                The time-series data for smoothing.
-
-            smoothK: int,
-                Size of the short-term median smoothing filter.
-
-            biasK: int,
-                Size of the long-term de-trending median filter.
-
-            peakThr: float,
-                Threshold for rescaling of the de-trended signal.
-
-            binThr: float,
-                Threshold for binarizing the de-trended signal.
-
-            polyDeg: int,
-                Sets the degree of the polynomial for lm fitting.
-
-            biasMet: str,
-                De-trending method, one of ['runmed', 'lm', 'none'].
-
-            colMeas: str,
-                Measurement column in x.
-
-            colGroup: str,
-                Track id column in x.
+            x (DataFrame): The time-series data for smoothing.
+            smoothK (int): Size of the short-term median smoothing filter.
+            biasK (int): Size of the long-term de-trending median filter.
+            peakThr (float): Threshold for rescaling of the de-trended signal.
+            binThr (float): Threshold for binarizing the de-trended signal.
+            polyDeg (int): Sets the degree of the polynomial for lm fitting.
+            biasMet (str): De-trending method, one of ['runmed', 'lm', 'none'].
+            colMeas (str): Measurement column in x.
+            colGroup (str): Track id column in x.
         """
         super().__init__(x, smoothK, biasK, peakThr, polyDeg, biasMet, colMeas, colGroup)
         self.binThr = binThr
@@ -212,8 +189,7 @@ class binData(detrender):
         median filter.
         Followed by binarization of the data.
 
-        Returns:
-            Dataframe containing Binarized data, rescaled data and the original columns
+        Returns (DataFrame): Dataframe containing Binarized data, rescaled data and the original columns
         """
         if self.biasMet == "none":
             rescaled_data = self._rescale_data(self.x)
