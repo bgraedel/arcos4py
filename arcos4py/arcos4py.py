@@ -1,6 +1,6 @@
-"""Main Module of arcos4py
+"""Main Module of arcos4py.
 
-This module contains the ARCOS class, which implements most functionallity of arcos4py 
+This module contains the ARCOS class, which implements most functionallity of arcos4py
 to prepare data and to detect and track collective events.
 
 Example:
@@ -103,9 +103,8 @@ class ARCOS:
         Returns:
             Dataframe with interpolated measurement column.
         """
-        meas_column = self.data[self.measurement_column].to_numpy()
-        meas_interp = interpolation(meas_column).interpolate()
-        self.data[self.measurement_column] = meas_interp
+        meas_interp = interpolation(self.data).interpolate()
+        self.data = meas_interp
         return self.data
 
     def clip_meas(self, clip_low: float = 0.001, clip_high: float = 0.999) -> pd.DataFrame:
@@ -187,6 +186,7 @@ class ARCOS:
 
     def trackCollev(self, eps: float = 1, minClsz: int = 1, nPrev: int = 1) -> pd.DataFrame:
         """Requires binarized measurement column.
+
         Makes use of the dbscan algorithm,
         applies this to every timeframe and subsequently connects
         collective events between frames located within eps distance of each other.

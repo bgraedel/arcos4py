@@ -88,6 +88,8 @@ class filterCollev:
         Returns:
             Returns pandas dataframe containing filtered collective events
         """
+        if self.data.empty:
+            return self.data
         colev_duration = calcCollevStats().calculate(self.data, self.frame_column, self.collid_column)
 
         filtered_df = self._filter_collev(

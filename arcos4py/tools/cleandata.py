@@ -13,49 +13,29 @@ Example:
 
 """
 import numpy as np
+import pandas as pd
 
 
 class interpolation:
     """Interpolate nan values in a numpy array."""
 
-    def __init__(self, data: np.ndarray):
+    def __init__(self, data: pd.DataFrame):
         """Interpolate nan values in a numpy array.
 
         Arguments:
-            data: np.ndarray,
+            data: pd.DataFrame,
                 Where NaN should be replaced with interpolated values.
         """
         self.data = data
 
-    def _nan_helper(self, y: np.ndarray):
-        """Helper to handle indices and logical indices of NaNs.
-
-        Input:
-            - y, 1d numpy array with possible NaNs.
-
-        Output:
-            - nans, logical indices of NaNs.
-            - index, a function, with signature indices= index(logical_indices),
-            to convert logical indices of NaNs to 'equivalent' indices.
-
-        Example:
-            >>> # linear interpolation of NaNs
-            >>> nans, x= nan_helper(y)
-            >>> y[nans]= np.interp(x(nans), x(~nans), y[~nans])
-
-        Returns:
-            Returns interpolated input data.
-        """
-        return np.isnan(y), lambda z: z.nonzero()[0]
-
-    def interpolate(self) -> np.ndarray:
+    def interpolate(self) -> pd.DataFrame:
         """Interpolate nan and missing values.
 
         Returns:
             Interpolated input data.
         """
-        nans, x = self._nan_helper(self.data)
-        self.data[nans] = np.interp(x(nans), x(~nans), self.data[~nans])
+        self.data = self.data.interpolate(axis=0)
+
         return self.data
 
 
