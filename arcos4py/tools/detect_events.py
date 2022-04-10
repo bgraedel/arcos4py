@@ -6,14 +6,15 @@ Example:
     >>> events_df = ts.run()
 """
 
+from tokenize import group
 from typing import Union
 
 import pandas as pd
-from numpy import int64
+import numpy as np
 from scipy.spatial import KDTree
 from sklearn.cluster import DBSCAN
 
-from ._errors import columnError, epsError, minClSzError, noDataError, nPrevError
+from arcos4py.tools._errors import columnError, epsError, minClSzError, noDataError, nPrevError
 
 
 class detectCollev:
@@ -133,6 +134,7 @@ class detectCollev:
         self._check_nPrev()
         self._check_frame_column()
 
+
     def _select_necessary_columns(
         self, data: pd.DataFrame, frame_col: str, id_col: str, pos_col: list, bin_col: Union[str, None]
     ) -> pd.DataFrame:
@@ -156,6 +158,7 @@ class detectCollev:
         neccessary_data = data[columns].copy(deep=True)
         return neccessary_data
 
+
     def _filter_active(self, data: pd.DataFrame, bin_meas_col: Union[str, None]) -> pd.DataFrame:
         """Selects rows with binary value of greater than 0.
 
@@ -170,6 +173,7 @@ class detectCollev:
             data = data[data[bin_meas_col] > 0]
         return data
 
+
     def _dbscan(self, x: pd.DataFrame, collid_col: str) -> pd.DataFrame:
         """Dbscan method to run and merge the cluster id labels to the original dataframe.
 
@@ -180,13 +184,11 @@ class detectCollev:
         Returns (Dataframe):
             Dataframe with added collective id column detected by DBSCAN.
         """
-        pos_array = x[self.pos_cols_inputdata]
-        db_array = DBSCAN(eps=self.eps, min_samples=self.minClSz, algorithm="kd_tree").fit(pos_array)
+        db_array = DBSCAN(eps=self.eps, min_samples=self.minClSz, algorithm="kd_tree").fit(x[:,1:])
         cluster_labels = db_array.labels_
-        cluster_list = [id + 1 for id in cluster_labels.tolist()]
-        x[collid_col] = cluster_list
-        x = x[x[collid_col] > 0]
-        return x
+        cluster_list = np.array([id + 1 if id >= 0 else np.nan for id in cluster_labels]).reshape(-1,1)
+        out = np.append(x, cluster_list, axis=1)
+        return out
 
     def _run_dbscan(self, data: pd.DataFrame, frame: str, clid_frame: str) -> pd.DataFrame:
         """Apply dbscan method to every group i.e. frame.
@@ -199,10 +201,17 @@ class detectCollev:
         Returns (Dataframe):
             Dataframe with added collective id column detected by DBSCAN for every frame.
         """
-        data_gb = data.groupby([frame])
-        db_labels = data_gb.apply(lambda x: self._dbscan(x, clid_frame))
-        db_labels = db_labels.reset_index(drop=True)
+        subset = [frame] + self.pos_cols_inputdata
+        data_np = data[subset].to_numpy()
+        data_np = data_np[data_np[:, 0].argsort()]
+        # data_gb = data.groupby([frame])
+        grouped_array = np.split(data_np, np.unique(data_np[:, 0], return_index=True)[1][1:])
+        # db_labels = data_gb.apply(self._dbscan(collid_col=clid_frame))
+        out = np.concatenate([self._dbscan(i, clid_frame) for i in grouped_array])
+        db_labels = pd.DataFrame(out, columns=subset+[clid_frame]).dropna()
+        db_labels = db_labels.merge(data, how="left")
         return db_labels
+
 
     def _make_db_id_unique(self, db_data: pd.DataFrame, frame: str, clid_frame, clid) -> pd.DataFrame:
         """Make db_scan cluster id labels unique by adding the\
@@ -225,8 +234,9 @@ class detectCollev:
         db_data = db_max[[frame, "PreviouMax_cumsum"]].merge(db_data, on=frame)
         db_data[self.clidFrame] += db_data["PreviouMax_cumsum"]
         db_data = db_data.drop(columns=["PreviouMax_cumsum"])
-        db_data[clid] = db_data[clid_frame].astype(int64)
+        db_data[clid] = db_data[clid_frame].astype(np.int64)
         return db_data
+
 
     def _nearest_neighbour(
         self,
@@ -291,6 +301,7 @@ class detectCollev:
         data[colid] = data.groupby(colid).ngroup() + 1
         return data
 
+
     def _get_export_columns(self):
         """Get columns that will contained in the pandas dataframe returned by the run method."""
         self.pos_cols_inputdata = [col for col in self.posCols if col in self.columns_input]
@@ -339,4 +350,5 @@ class detectCollev:
         else:
             df_to_merge = self.input_data
         tracked_events = tracked_events.merge(df_to_merge, how="left")
+        tracked_events = tracked_events.convert_dtypes()
         return tracked_events
