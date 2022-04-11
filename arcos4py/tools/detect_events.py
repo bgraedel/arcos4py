@@ -6,7 +6,6 @@ Example:
     >>> events_df = ts.run()
 """
 
-from tokenize import group
 from typing import Union
 
 import pandas as pd
@@ -50,7 +49,7 @@ class detectCollev:
         nPrev: int = 1,
         posCols: list = ["x"],
         frame_column: str = 'time',
-        id_column: str = 'id',
+        id_column: Union[str,None] = None,
         bin_meas_column: Union[str, None] = 'meas',
         clid_column: str = 'clTrackID',
     ) -> None:
@@ -68,7 +67,7 @@ class detectCollev:
             posCols (list): List of position columns contained in the data.
                 Must at least contain one
             frame_column (str): Indicating the frame column in input_data.
-            id_column (str): Indicating the track id/id column in input_data.
+            id_column (str | None): Indicating the track id/id column in input_data, optional.
             bin_meas_column (str): Indicating the bin_meas_column in input_data or None.
             clid_column (str): Indicating the column name containing the ids of collective events.
         """
@@ -108,10 +107,6 @@ class detectCollev:
         if self.frame_column not in self.columns_input:
             raise columnError("Input data does not have the indicated frame column!")
 
-    def _check_id_column(self):
-        if self.id_column not in self.columns_input:
-            raise columnError("Input data does not have the indicated id column!")
-
     def _check_eps(self):
         """Checks if eps is greater than 0."""
         if self.eps <= 0:
@@ -136,7 +131,7 @@ class detectCollev:
 
 
     def _select_necessary_columns(
-        self, data: pd.DataFrame, frame_col: str, id_col: str, pos_col: list, bin_col: Union[str, None]
+        self, data: pd.DataFrame, frame_col: str, id_col: Union[str,None], pos_col: list, bin_col: Union[str, None]
     ) -> pd.DataFrame:
         """Select necessary input colums from input data into dataframe.
 
@@ -150,10 +145,9 @@ class detectCollev:
         Returns (DataFrame):
             Filtered columns necessary for calculation.
         """
-        if bin_col is None:
-            columns = [frame_col, id_col]
-        else:
-            columns = [frame_col, id_col, bin_col]
+        
+        columns = [frame_col, id_col, bin_col]
+        columns = [col for col in columns if col]
         columns.extend(pos_col)
         neccessary_data = data[columns].copy(deep=True)
         return neccessary_data
@@ -174,7 +168,7 @@ class detectCollev:
         return data
 
 
-    def _dbscan(self, x: pd.DataFrame) -> list:
+    def _dbscan(self, x: np.ndarray) -> list:
         """Dbscan method to run and merge the cluster id labels to the original dataframe.
 
         Arguments:
@@ -189,7 +183,8 @@ class detectCollev:
         cluster_list = [id+1 if id > -1 else np.nan for id in cluster_labels]
         return cluster_list
 
-    def _run_dbscan(self, data: pd.DataFrame, frame: str, clid_frame: str) -> pd.DataFrame:
+
+    def _run_dbscan(self, data: pd.DataFrame, frame: str, clid_frame: str, id_column: Union[str, None]) -> pd.DataFrame:
         """Apply dbscan method to every group i.e. frame.
 
         Arguments:
@@ -200,13 +195,15 @@ class detectCollev:
         Returns (Dataframe):
             Dataframe with added collective id column detected by DBSCAN for every frame.
         """
-        data = data.sort_values([frame, self.id_column]).reset_index(drop=True)
+        if self.id_column:
+            data = data.sort_values([frame, id_column]).reset_index(drop=True)
+        else:
+            data = data.sort_values([frame]).reset_index(drop=True)
         subset = [frame] + self.pos_cols_inputdata
         data_np = data[subset].to_numpy(dtype=np.float64)
-        # data_gb = data.groupby([frame])
         grouped_array = np.split(data_np, np.unique(data_np[:, 0], axis=0, return_index=True)[1][1:])
-        # db_labels = data_gb.apply(self._dbscan(collid_col=clid_frame))
-        out = [self._dbscan(i) for i in grouped_array]
+        # map dbscan to grouped_array
+        out = [self._dbscan(x) for x in grouped_array]
         out_list = [item for sublist in out for item in sublist]
         data[clid_frame] = out_list
         data = data.dropna()
@@ -259,6 +256,7 @@ class detectCollev:
         nearest_neighbours = kdB.query(data_b.values, k=nbr_nearest_neighbours)
         return nearest_neighbours
 
+    @profile
     def _link_clusters_between_frames(self, data: pd.DataFrame, frame: str, colid: str) -> pd.DataFrame:
         """Tracks clusters detected with DBSCAN along a frame axis,\
         returns tracked collective events as a pandas dataframe.
@@ -281,7 +279,6 @@ class detectCollev:
                 # loop over unique cluster in frame
                 for cluster in sorted(colid_current.unique()):
                     pos_current = current_frame[self.posCols][current_frame[colid] == cluster]
-
                     pos_previous = prev_frame[self.posCols]
                     # calculate nearest neighbour between previoius and current frame
                     nn_dist, nn_indices = self._nearest_neighbour(pos_previous, pos_current)
@@ -305,12 +302,14 @@ class detectCollev:
     def _get_export_columns(self):
         """Get columns that will contained in the pandas dataframe returned by the run method."""
         self.pos_cols_inputdata = [col for col in self.posCols if col in self.columns_input]
-        columns = [self.frame_column, self.id_column]
+        if self.id_column:
+            columns = [self.frame_column, self.id_column]
+        else:
+            columns = [self.frame_column]
         columns.extend(self.pos_cols_inputdata)
         columns.append(self.clid_column)
         return columns
         
-    @profile
     def run(self) -> pd.DataFrame:
         """Method to execute the different steps necessary for tracking.
 
@@ -333,9 +332,10 @@ class detectCollev:
         )
         active_data = self._filter_active(filtered_cols, self.bin_meas_column)
         db_data = self._run_dbscan(
-            data=active_data,
-            frame=self.frame_column,
-            clid_frame=self.clidFrame,
+            data = active_data,
+            frame = self.frame_column,
+            clid_frame =self.clidFrame,
+            id_column = self.id_column,
         )
         db_data = self._make_db_id_unique(
             db_data,
@@ -353,3 +353,4 @@ class detectCollev:
         tracked_events = tracked_events.merge(df_to_merge, how="left")
         tracked_events = tracked_events
         return tracked_events
+
