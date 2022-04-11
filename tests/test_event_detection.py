@@ -44,7 +44,7 @@ def test_1_central_1_prev():
     ts.bin_col = 'm'
     out = ts.trackCollev(eps=1, minClsz=1, nPrev=1)
     out = out.drop(columns=['m', 'x'])
-    assert_frame_equal(out, df_true)
+    assert_frame_equal(out, df_true, check_dtype=False)
 
 
 def test_1_central_2_prev():
@@ -57,7 +57,7 @@ def test_1_central_2_prev():
     ts.bin_col = 'm'
     out = ts.trackCollev(eps=1, minClsz=1, nPrev=2)
     out = out.drop(columns=['m', 'x'])
-    assert_frame_equal(out, df_true)
+    assert_frame_equal(out, df_true, check_dtype=False)
 
 
 def test_1_central_3D():

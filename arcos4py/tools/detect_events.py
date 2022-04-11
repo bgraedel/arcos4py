@@ -186,7 +186,7 @@ class detectCollev:
         """
         db_array = DBSCAN(eps=self.eps, min_samples=self.minClSz, algorithm="kd_tree").fit(x[:,1:])
         cluster_labels = db_array.labels_
-        cluster_list = np.array([id + 1 if id >= 0 else np.nan for id in cluster_labels]).reshape(-1,1)
+        cluster_list = np.array([id+1 if id > -1 else np.nan for id in cluster_labels]).reshape(-1,1)
         out = np.append(x, cluster_list, axis=1)
         return out
 
@@ -201,15 +201,16 @@ class detectCollev:
         Returns (Dataframe):
             Dataframe with added collective id column detected by DBSCAN for every frame.
         """
+        data = data.sort_values([frame, self.id_column])
         subset = [frame] + self.pos_cols_inputdata
-        data_np = data[subset].to_numpy()
-        data_np = data_np[data_np[:, 0].argsort()]
+        data_np = data[subset].to_numpy(dtype=np.float64)
         # data_gb = data.groupby([frame])
-        grouped_array = np.split(data_np, np.unique(data_np[:, 0], return_index=True)[1][1:])
+        grouped_array = np.split(data_np, np.unique(data_np[:, 0], axis=0, return_index=True)[1][1:])
         # db_labels = data_gb.apply(self._dbscan(collid_col=clid_frame))
         out = np.concatenate([self._dbscan(i, clid_frame) for i in grouped_array])
         db_labels = pd.DataFrame(out, columns=subset+[clid_frame]).dropna()
         db_labels = db_labels.merge(data, how="left")
+        db_labels[frame] = db_labels[frame].astype(np.int64)
         return db_labels
 
 
@@ -350,5 +351,5 @@ class detectCollev:
         else:
             df_to_merge = self.input_data
         tracked_events = tracked_events.merge(df_to_merge, how="left")
-        tracked_events = tracked_events.convert_dtypes()
+        tracked_events = tracked_events
         return tracked_events
