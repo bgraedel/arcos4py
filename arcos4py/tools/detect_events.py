@@ -174,7 +174,7 @@ class detectCollev:
         return data
 
 
-    def _dbscan(self, x: pd.DataFrame, collid_col: str) -> pd.DataFrame:
+    def _dbscan(self, x: pd.DataFrame) -> list:
         """Dbscan method to run and merge the cluster id labels to the original dataframe.
 
         Arguments:
@@ -186,9 +186,8 @@ class detectCollev:
         """
         db_array = DBSCAN(eps=self.eps, min_samples=self.minClSz, algorithm="kd_tree").fit(x[:,1:])
         cluster_labels = db_array.labels_
-        cluster_list = np.array([id+1 if id > -1 else np.nan for id in cluster_labels]).reshape(-1,1)
-        out = np.append(x, cluster_list, axis=1)
-        return out
+        cluster_list = [id+1 if id > -1 else np.nan for id in cluster_labels]
+        return cluster_list
 
     def _run_dbscan(self, data: pd.DataFrame, frame: str, clid_frame: str) -> pd.DataFrame:
         """Apply dbscan method to every group i.e. frame.
@@ -201,17 +200,17 @@ class detectCollev:
         Returns (Dataframe):
             Dataframe with added collective id column detected by DBSCAN for every frame.
         """
-        data = data.sort_values([frame, self.id_column])
+        data = data.sort_values([frame, self.id_column]).reset_index(drop=True)
         subset = [frame] + self.pos_cols_inputdata
         data_np = data[subset].to_numpy(dtype=np.float64)
         # data_gb = data.groupby([frame])
         grouped_array = np.split(data_np, np.unique(data_np[:, 0], axis=0, return_index=True)[1][1:])
         # db_labels = data_gb.apply(self._dbscan(collid_col=clid_frame))
-        out = np.concatenate([self._dbscan(i, clid_frame) for i in grouped_array])
-        db_labels = pd.DataFrame(out, columns=subset+[clid_frame]).dropna()
-        db_labels = db_labels.merge(data, how="left")
-        db_labels[frame] = db_labels[frame].astype(np.int64)
-        return db_labels
+        out = [self._dbscan(i) for i in grouped_array]
+        out_list = [item for sublist in out for item in sublist]
+        data[clid_frame] = out_list
+        data = data.dropna()
+        return data
 
 
     def _make_db_id_unique(self, db_data: pd.DataFrame, frame: str, clid_frame, clid) -> pd.DataFrame:
@@ -310,7 +309,8 @@ class detectCollev:
         columns.extend(self.pos_cols_inputdata)
         columns.append(self.clid_column)
         return columns
-
+        
+    @profile
     def run(self) -> pd.DataFrame:
         """Method to execute the different steps necessary for tracking.
 
