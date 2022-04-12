@@ -113,12 +113,14 @@ class detectCollev:
             raise epsError("eps has to be greater than 0")
 
     def _check_minClSz(self):
+        """Checks if minClSiz is greater than 0."""
         if self.minClSz <= 0:
-            raise minClSzError("Parameter eps has to be greater than 0!")
+            raise minClSzError("Parameter minClSiz has to be greater than 0!")
 
     def _check_nPrev(self):
-        if self.nPrev <= 0:
-            raise nPrevError("Parameter nPrev has to be an integer greater than 0!")
+        """Checks if nPrev is greater than 0."""
+        if self.nPrev <= 0 and isinstance(self.nPrev, int):
+            raise nPrevError("Parameter nPrev has to be an integer greater than 0 and an integer!")
 
     def _run_input_checks(self):
         """Run input checks."""
@@ -359,4 +361,3 @@ class detectCollev:
         tracked_events = tracked_events.merge(df_to_merge, how="left")
         tracked_events = tracked_events
         return tracked_events
-
