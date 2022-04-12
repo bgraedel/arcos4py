@@ -34,7 +34,6 @@ class detrender:
 
     def __init__(
         self,
-        x: pd.DataFrame,
         smoothK: int = 3,
         biasK: int = 51,
         peakThr: float = 0.2,
@@ -60,14 +59,11 @@ class detrender:
         if biasMet not in biasMet_types:
             raise ValueError(f"Invalid bias method. Expected one of: {biasMet_types}")
 
-        self.x = x
         self.smoothK = smoothK
         self.biasK = biasK
         self.peakThr = peakThr
         self.polyDeg = polyDeg
         self.biasMet = biasMet
-        self.colMeas = colMeas
-        self.colGroup = colGroup
 
     def _detrend_runnmed(self, data, filter_size, endrule_mode):
         local_smoothing = median_filter(input=data, size=filter_size, mode=endrule_mode)
@@ -81,9 +77,9 @@ class detrender:
         predicted_value = model.predict(data_)
         return predicted_value
 
-    def _run_detrend(self, data: pd.DataFrame, col_meas: str) -> pd.DataFrame:
-        if not data.empty:
-            local_smoothed = self._detrend_runnmed(data[col_meas], self.smoothK, "constant")
+    def _run_detrend(self, data: pd.DataFrame) -> pd.DataFrame:
+        if data.size:
+            local_smoothed = self._detrend_runnmed(data, self.smoothK, "constant")
             if self.biasMet != "none":
                 if self.biasMet == "runmed":
                     global_smoothed = self._detrend_runnmed(
@@ -102,12 +98,9 @@ class detrender:
         else:
             local_smoothed = None
 
-        if not col_meas.endswith(".resc"):
-            col_meas = f"{col_meas}.resc"
-        data[col_meas] = local_smoothed
-        return data
+        return local_smoothed
 
-    def detrend(self, data: pd.DataFrame, group_col: str, resc_col) -> pd.DataFrame:
+    def detrend(self, data: np.ndarray, group_index: str, meas_index: str) -> np.ndarray:
         """Run detrinding on input data.
 
         The method applies detrending to each group defined in group_col and
@@ -115,9 +108,10 @@ class detrender:
 
         Returns (DataFrame): Dataframe containing rescaled column.
         """
-        data_gp = data.groupby([group_col])
-        data = data_gp.apply(lambda y: self._run_detrend(y, resc_col))
-        return data
+        grouped_array = np.split(data[:,meas_index], np.unique(data[:, group_index], axis=0, return_index=True)[1][1:])
+        out = [self._run_detrend(x) for x in grouped_array]
+        out_list = [item for sublist in out for item in sublist]
+        return np.array(out_list)
 
 
 class binData(detrender):
@@ -139,15 +133,12 @@ class binData(detrender):
 
     def __init__(
         self,
-        x: pd.DataFrame,
         smoothK: int = 3,
         biasK: int = 51,
         peakThr: float = 0.2,
         binThr: float = 0.1,
         polyDeg: int = 1,
         biasMet: str = "runmed",
-        colMeas: str = "meas",
-        colGroup: str = "id",
     ) -> None:
         """Smooth, de-trend, and binarise the input data.
 
@@ -162,22 +153,22 @@ class binData(detrender):
             colMeas (str): Measurement column in x.
             colGroup (str): Track id column in x.
         """
-        super().__init__(x, smoothK, biasK, peakThr, polyDeg, biasMet, colMeas, colGroup)
+        super().__init__(smoothK, biasK, peakThr, polyDeg, biasMet)
         self.binThr = binThr
-        self.col_resc = f"{self.colMeas}.resc"
-        self.col_bin = f"{self.colMeas}.bin"
 
-    def _rescale_data(self, df: pd.DataFrame, range: tuple = (0, 1)) -> pd.DataFrame:
-        rescaled = minmax_scale(df[self.colMeas], feature_range=range)
-        df[self.col_resc] = rescaled
-        return df
+    def _rescale_data(self, x: np.ndarray, group_index: int, meas_index: int, feat_range: tuple = (0, 1)) -> np.ndarray:
+        grouped_array = np.split(x[meas_index,:], np.unique(x[group_index, :], axis=0, return_index=True)[1][1:])
+        out = [minmax_scale(i, feature_range=feat_range) for i in grouped_array]
+        rescaled = [item for sublist in out for item in sublist]
+        # rescaled = minmax_scale(x[:,1], feature_range=feat_range)
+        x[:,meas_index] = rescaled
+        return x
 
-    def _bin_data(self, df: pd.DataFrame) -> pd.DataFrame:
-        bin = (df[self.col_resc].to_numpy() > self.binThr).astype(np.int_)
-        df[self.col_bin] = bin
-        return df
+    def _bin_data(self, x: np.ndarray) -> np.ndarray:
+        bin = (x > self.binThr).astype(np.int_)
+        return bin
 
-    def run(self) -> pd.DataFrame:
+    def run(self, x: pd.DataFrame, colGroup: str, colMeas: str, colFrame: str) -> pd.DataFrame:
         """Runs binarization and detrending.
 
         If the bias Method is 'none', first it rescales the data to between [0,1], then
@@ -191,12 +182,27 @@ class binData(detrender):
 
         Returns (DataFrame): Dataframe containing Binarized data, rescaled data and the original columns
         """
+        col_resc = f"{colMeas}.resc"
+        col_bin = f"{colMeas}.bin"
+        cols = [colGroup,colMeas]
+        x.sort_values([colGroup, colFrame], inplace=True)
+        data_np = x[cols].to_numpy()
+
         if self.biasMet == "none":
-            rescaled_data = self._rescale_data(self.x)
-            detrended_data = self.detrend(rescaled_data, self.colGroup, self.col_resc)
+            rescaled_data = self._rescale_data(data_np, group_index = 0, meas_index = 1)
+            detrended_data = self.detrend(rescaled_data, 0, 1)
             binarized_data = self._bin_data(detrended_data)
         else:
-            detrended_data = self.detrend(self.x, self.colGroup, self.colMeas)
+            detrended_data = self.detrend(data_np, group_index=0, meas_index=1)
             binarized_data = self._bin_data(detrended_data)
+        
+        x[col_resc] = detrended_data
+        x[col_bin] = binarized_data
+        return x
 
-        return binarized_data
+
+if __name__ == "__main__":
+    df = pd.read_csv("C:\\Users\\benig\\Documents\\tracks_191021_wt_curated_smoothedXYZ_interpolated_binarised.csv")
+    dt = binData().run(df,colGroup="trackID",colMeas="ERK_KTR")
+    dt.to_csv("data_2.csv")
+    
