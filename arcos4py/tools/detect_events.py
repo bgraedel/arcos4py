@@ -237,8 +237,8 @@ class detectCollev:
 
     def _nearest_neighbour(
         self,
-        data_a: pd.DataFrame,
-        data_b: pd.DataFrame,
+        data_a: np.ndarray,
+        data_b: np.ndarray,
         nbr_nearest_neighbours: int = 1,
     ):
         """Calculates nearest neighbour in from data_a\
@@ -252,11 +252,10 @@ class detectCollev:
         Returns (tuple):
             Returns tuple of 2 arrays containing nearest neighbour indices and distances.
         """
-        kdB = KDTree(data=data_a.values)
-        nearest_neighbours = kdB.query(data_b.values, k=nbr_nearest_neighbours)
+        kdB = KDTree(data=data_a)
+        nearest_neighbours = kdB.query(data_b, k=nbr_nearest_neighbours)
         return nearest_neighbours
 
-    @profile
     def _link_clusters_between_frames(self, data: pd.DataFrame, frame: str, colid: str) -> pd.DataFrame:
         """Tracks clusters detected with DBSCAN along a frame axis,\
         returns tracked collective events as a pandas dataframe.
@@ -269,33 +268,40 @@ class detectCollev:
         Returns (Dataframe):
             Pandas dataframe with tracked collective ids.
         """
+        essential_cols = [frame, colid] + self.posCols
+        data_essential = data[essential_cols]
+        data_np = data_essential.to_numpy()
+        data_np_frame = data_np[:,0]
+        
         # loop over all frames to link detected clusters iteratively
-        for t in sorted(data[frame].unique())[1:]:
-            prev_frame = data[(data[frame] >= (t - self.nPrev)) & (data[frame] < (t))].copy(deep=True)
-            current_frame = data[data[frame] == t].copy(deep=True)
+        for t in np.unique(data_np_frame, return_index=False)[1:]:
+            prev_frame = data_np[(data_np_frame >= (t - self.nPrev)) & (data_np_frame < t)]
+            current_frame = data_np[data_np_frame == t]
             # only continue if objects were detected in previous frame
-            if not prev_frame.empty:
-                colid_current = current_frame[colid]
+            if prev_frame.size:
+                colid_current = current_frame[:,1]
                 # loop over unique cluster in frame
-                for cluster in sorted(colid_current.unique()):
-                    pos_current = current_frame[self.posCols][current_frame[colid] == cluster]
-                    pos_previous = prev_frame[self.posCols]
+                for cluster in np.unique(colid_current, return_index=False):
+                    pos_current = current_frame[:,2:][colid_current == cluster]
+                    pos_previous = prev_frame[:,2:]
                     # calculate nearest neighbour between previoius and current frame
                     nn_dist, nn_indices = self._nearest_neighbour(pos_previous, pos_current)
-                    prev_cluster_nbr_all = prev_frame.iloc[nn_indices][colid]
-                    prev_cluster_nbr_eps = prev_cluster_nbr_all[nn_dist <= self.eps]
+                    prev_cluster_nbr_all = prev_frame[nn_indices,1]
+                    prev_cluster_nbr_eps = prev_cluster_nbr_all[(nn_dist <= self.eps)]
                     # only continue if neighbours
                     # were detected within eps distance
-                    if not prev_cluster_nbr_eps.empty:
-                        prev_clusternbr_eps_unique = prev_cluster_nbr_eps.unique()
-                        colid_subset = data[(data[frame] == t) & (data[colid] == cluster)][colid]
-                        subset_index_list = list(colid_subset.index.values)
-                        # propagate cluster id from previous frame
-                        # if multiple clusters in the eps of nearest neighbour
-                        if len(prev_clusternbr_eps_unique) > 0:
-                            data.loc[subset_index_list, colid] = prev_cluster_nbr_all.values
+                    if prev_cluster_nbr_eps.size:
+                        prev_clusternbr_eps_unique = np.unique(prev_cluster_nbr_eps, return_index=False)
+                        if prev_clusternbr_eps_unique.size > 0:
+                            # propagate cluster id from previous frame
+                            data_np[((data_np_frame == t) & (data_np[:,1] == cluster)),1] = prev_cluster_nbr_all
 
-        data[colid] = data.groupby(colid).ngroup() + 1
+        np_out = data_np[:,1]
+        sorter = np_out.argsort()[::1]
+        grouped_array = np.split(np_out[sorter], np.unique(np_out[sorter], axis=0, return_index=True)[1][1:])
+        np_grouped_consecutive = (np.repeat(i+1, value.size) for i, value in enumerate(grouped_array))
+        out_array = np.array([item for sublist in np_grouped_consecutive for item in sublist])
+        data[colid] = out_array[sorter.argsort()].astype('int64')
         return data
 
 
