@@ -3,7 +3,7 @@
 Example:
     >>> from arcos4py.tools import filterCollev
     >>> f = filterCollev(data, 'time', 'collid')
-    >>> df = f.filter(coll_duration: int = 9, coll_total_size: int = 10)
+    >>> df = f.filter(coll_duration = 9, coll_total_size = 10)
 """
 import pandas as pd
 
@@ -18,6 +18,7 @@ class filterCollev:
         data (Dataframe): With detected collective events.
         frame_column (str): Indicating the frame column in data.
         collid_column (str): Indicating the collective event id column in data.
+        obj_id_column (str): Inidicating the object identifier column such as cell track id.
     """
 
     def __init__(
@@ -25,6 +26,7 @@ class filterCollev:
         data: pd.DataFrame,
         frame_column: str = "time",
         collid_column: str = "collid",
+        obj_id_column: str = "trackID",
     ):
         """Constructs filterCollev class with Parameters.
 
@@ -32,10 +34,12 @@ class filterCollev:
             data (Dataframe): With detected collective events.
             frame_column (str): Indicating the frame column in data.
             collid_column (str): Indicating the collective event id column in data.
+            obj_id_column (str): Inidicating the object identifier column such as cell track id.
         """
         self.data = data
         self.frame_column = frame_column
         self.collid_column = collid_column
+        self.obj_id_column = obj_id_column
 
     def _filter_collev(
         self,
@@ -60,7 +64,9 @@ class filterCollev:
             Dataframe containing filtered collective events.
 
         """
-        collev_stats = collev_stats[(collev_stats["duration"] >= min_duration) & (collev_stats["tot_size"] >= min_size)]
+        collev_stats = collev_stats[
+            (collev_stats["duration"] >= min_duration) & (collev_stats["total_size"] >= min_size)
+        ]
         data = data[data[collev_id].isin(collev_stats[collev_id])]
         return data
 
@@ -79,7 +85,8 @@ class filterCollev:
         """
         if self.data.empty:
             return self.data
-        colev_duration = calcCollevStats().calculate(self.data, self.frame_column, self.collid_column)
+        stats = calcCollevStats()
+        colev_duration = stats.calculate(self.data, self.frame_column, self.collid_column, self.obj_id_column)
 
         filtered_df = self._filter_collev(
             self.data,
