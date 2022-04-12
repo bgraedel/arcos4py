@@ -99,13 +99,13 @@ class detrender:
         outputs it into the resc_column.
 
         Arguments:
-            x (np.ndarray): Time series data for smoothing.          
-            colMeas (str): Index of measurement column in x.
-            colGroup (str): Index of id column in x.
+            x (np.ndarray): Time series data for smoothing.
+            group_index (int): Index of measurement column in x.
+            meas_index (int): Index of id column in x.
 
         Returns (np.ndarray): Dataframe containing rescaled column.
         """
-        grouped_array = np.split(x[:,meas_index], np.unique(x[:, group_index], axis=0, return_index=True)[1][1:])
+        grouped_array = np.split(x[:, meas_index], np.unique(x[:, group_index], axis=0, return_index=True)[1][1:])
         out = [self._run_detrend(x) for x in grouped_array]
         out_list = [item for sublist in out for item in sublist]
         return np.array(out_list)
@@ -159,11 +159,11 @@ class binData(detrender):
         self.binThr = binThr
 
     def _rescale_data(self, x: np.ndarray, group_index: int, meas_index: int, feat_range: tuple = (0, 1)) -> np.ndarray:
-        grouped_array = np.split(x[meas_index,:], np.unique(x[group_index, :], axis=0, return_index=True)[1][1:])
+        grouped_array = np.split(x[meas_index, :], np.unique(x[group_index, :], axis=0, return_index=True)[1][1:])
         out = [minmax_scale(i, feature_range=feat_range) for i in grouped_array]
         rescaled = [item for sublist in out for item in sublist]
         # rescaled = minmax_scale(x[:,1], feature_range=feat_range)
-        x[:,meas_index] = rescaled
+        x[:, meas_index] = rescaled
         return x
 
     def _bin_data(self, x: np.ndarray) -> np.ndarray:
@@ -192,18 +192,18 @@ class binData(detrender):
         """
         col_resc = f"{colMeas}.resc"
         col_bin = f"{colMeas}.bin"
-        cols = [colGroup,colMeas]
+        cols = [colGroup, colMeas]
         x.sort_values([colGroup, colFrame], inplace=True)
         data_np = x[cols].to_numpy()
 
         if self.biasMet == "none":
-            rescaled_data = self._rescale_data(data_np, group_index = 0, meas_index = 1)
+            rescaled_data = self._rescale_data(data_np, group_index=0, meas_index=1)
             detrended_data = self.detrend(rescaled_data, 0, 1)
             binarized_data = self._bin_data(detrended_data)
         else:
             detrended_data = self.detrend(data_np, group_index=0, meas_index=1)
             binarized_data = self._bin_data(detrended_data)
-        
+
         x[col_resc] = detrended_data
         x[col_bin] = binarized_data
         return x
