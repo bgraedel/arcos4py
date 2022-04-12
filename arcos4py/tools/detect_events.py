@@ -13,7 +13,7 @@ import pandas as pd
 from scipy.spatial import KDTree
 from sklearn.cluster import DBSCAN
 
-from ._errors import columnError, epsError, minClSzError, noDataError, nPrevError
+from arcos4py.tools._errors import columnError, epsError, minClSzError, noDataError, nPrevError
 
 
 class detectCollev:
@@ -179,7 +179,7 @@ class detectCollev:
         db_array = DBSCAN(eps=self.eps, min_samples=self.minClSz, algorithm="kd_tree").fit(x[:, 1:])
         cluster_labels = db_array.labels_
         cluster_list = [id + 1 if id > -1 else np.nan for id in cluster_labels]
-        return cluster_list
+        return np.array(cluster_list)
 
     def _run_dbscan(self, data: pd.DataFrame, frame: str, clid_frame: str, id_column: Union[str, None]) -> pd.DataFrame:
         """Apply dbscan method to every group i.e. frame.
@@ -201,7 +201,7 @@ class detectCollev:
         data_np = data[subset].to_numpy(dtype=np.float64)
         grouped_array = np.split(data_np, np.unique(data_np[:, 0], axis=0, return_index=True)[1][1:])
         # map dbscan to grouped_array
-        out = [self._dbscan(x) for x in grouped_array]
+        out = [self._dbscan(i) for i in grouped_array]
         out_list = [item for sublist in out for item in sublist]
         data[clid_frame] = out_list
         data = data.dropna()
@@ -220,15 +220,12 @@ class detectCollev:
         Returns (Dataframe):
             Dataframe with unique collective events.
         """
-        db_data_n = db_data[[clid_frame, frame]]
-        db_gp = db_data_n.groupby([frame])
-        db_max = db_gp.max().reset_index()
-        db_max["PreviouMax"] = db_max[clid_frame].shift(1).fillna(0)
-        db_max["PreviouMax_cumsum"] = db_max["PreviouMax"].cumsum()
-        db_data = db_max[[frame, "PreviouMax_cumsum"]].merge(db_data, on=frame)
-        db_data[self.clidFrame] += db_data["PreviouMax_cumsum"]
-        db_data = db_data.drop(columns=["PreviouMax_cumsum"])
-        db_data[clid] = db_data[clid_frame].astype(np.int64)
+        db_data_np = db_data[[frame,clid_frame]].to_numpy()
+        grouped_array = np.split(db_data_np[:,1], np.unique(db_data_np[:, 0], axis=0, return_index=True)[1][1:])
+        max_array = [0]+[np.max(i) for i in grouped_array]
+        out = [np.add(value, np.cumsum(max_array)[i]) for i, value in enumerate(grouped_array)]
+        db_gp = np.concatenate(out)
+        db_data[clid] = db_gp.astype(np.int64)
         return db_data
 
     def _nearest_neighbour(
@@ -310,7 +307,7 @@ class detectCollev:
         columns.extend(self.pos_cols_inputdata)
         columns.append(self.clid_column)
         return columns
-
+    
     def run(self) -> pd.DataFrame:
         """Method to execute the different steps necessary for tracking.
 
@@ -354,3 +351,7 @@ class detectCollev:
         tracked_events = tracked_events.merge(df_to_merge, how="left")
         tracked_events = tracked_events
         return tracked_events
+
+if __name__ == "__main__":
+    df = pd.read_csv("C:/Users/benig/Documents/tracks_191021_wt_curated_smoothedXYZ_interpolated_binarised.csv")
+    ts = detectCollev(df, 20, 5, 1, ['posx', 'posy', 'posz'], 'time', 'trackID', 'meas.bin').run()
