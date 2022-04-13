@@ -179,7 +179,7 @@ class detectCollev:
         db_array = DBSCAN(eps=self.eps, min_samples=self.minClSz, algorithm="kd_tree").fit(x[:, 1:])
         cluster_labels = db_array.labels_
         cluster_list = [id + 1 if id > -1 else np.nan for id in cluster_labels]
-        return np.array(cluster_list)
+        return cluster_list
 
     def _run_dbscan(self, data: pd.DataFrame, frame: str, clid_frame: str, id_column: Union[str, None]) -> pd.DataFrame:
         """Apply dbscan method to every group i.e. frame.
@@ -220,9 +220,9 @@ class detectCollev:
         Returns (Dataframe):
             Dataframe with unique collective events.
         """
-        db_data_np = db_data[[frame,clid_frame]].to_numpy()
-        grouped_array = np.split(db_data_np[:,1], np.unique(db_data_np[:, 0], axis=0, return_index=True)[1][1:])
-        max_array = [0]+[np.max(i) for i in grouped_array]
+        db_data_np = db_data[[frame, clid_frame]].to_numpy()
+        grouped_array = np.split(db_data_np[:, 1], np.unique(db_data_np[:, 0], axis=0, return_index=True)[1][1:])
+        max_array = [0] + [np.max(i) for i in grouped_array]
         out = [np.add(value, np.cumsum(max_array)[i]) for i, value in enumerate(grouped_array)]
         db_gp = np.concatenate(out)
         db_data[clid] = db_gp.astype(np.int64)
@@ -307,7 +307,7 @@ class detectCollev:
         columns.extend(self.pos_cols_inputdata)
         columns.append(self.clid_column)
         return columns
-    
+
     def run(self) -> pd.DataFrame:
         """Method to execute the different steps necessary for tracking.
 
@@ -351,6 +351,7 @@ class detectCollev:
         tracked_events = tracked_events.merge(df_to_merge, how="left")
         tracked_events = tracked_events
         return tracked_events
+
 
 if __name__ == "__main__":
     df = pd.read_csv("C:/Users/benig/Documents/tracks_191021_wt_curated_smoothedXYZ_interpolated_binarised.csv")
