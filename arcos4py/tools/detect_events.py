@@ -13,7 +13,7 @@ import pandas as pd
 from scipy.spatial import KDTree
 from sklearn.cluster import DBSCAN
 
-from arcos4py.tools._errors import columnError, epsError, minClSzError, noDataError, nPrevError
+from ._errors import columnError, epsError, minClSzError, noDataError, nPrevError
 
 
 class detectCollev:
