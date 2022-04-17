@@ -159,16 +159,13 @@ class ARCOS:
             DataFrame with detrended/smoothed and binarized measurement column.
         """
         self.data = binData(
-            self.data,
             smoothK,
             biasK,
             peakThr,
             binThr,
             polyDeg,
             biasMet,
-            colMeas=self.measurement_column,
-            colGroup=self.id_column,
-        ).run()
+        ).run(self.data, colMeas=self.measurement_column, colGroup=self.id_column, colFrame=self.frame_column)
         return self.data
 
     def trackCollev(self, eps: float = 1, minClsz: int = 1, nPrev: int = 1) -> pd.DataFrame:

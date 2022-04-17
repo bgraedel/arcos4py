@@ -8,12 +8,12 @@ Example:
 
 from typing import Union
 
+import numpy as np
 import pandas as pd
-from numpy import int64
 from scipy.spatial import KDTree
 from sklearn.cluster import DBSCAN
 
-from ._errors import columnError, epsError, minClSzError, noDataError, nPrevError
+from arcos4py.tools._errors import columnError, epsError, minClSzError, noDataError, nPrevError
 
 
 class detectCollev:
@@ -49,7 +49,7 @@ class detectCollev:
         nPrev: int = 1,
         posCols: list = ["x"],
         frame_column: str = 'time',
-        id_column: str = 'id',
+        id_column: Union[str, None] = None,
         bin_meas_column: Union[str, None] = 'meas',
         clid_column: str = 'clTrackID',
     ) -> None:
@@ -67,7 +67,7 @@ class detectCollev:
             posCols (list): List of position columns contained in the data.
                 Must at least contain one
             frame_column (str): Indicating the frame column in input_data.
-            id_column (str): Indicating the track id/id column in input_data.
+            id_column (str | None): Indicating the track id/id column in input_data, optional.
             bin_meas_column (str): Indicating the bin_meas_column in input_data or None.
             clid_column (str): Indicating the column name containing the ids of collective events.
         """
@@ -107,22 +107,20 @@ class detectCollev:
         if self.frame_column not in self.columns_input:
             raise columnError("Input data does not have the indicated frame column!")
 
-    def _check_id_column(self):
-        if self.id_column not in self.columns_input:
-            raise columnError("Input data does not have the indicated id column!")
-
     def _check_eps(self):
         """Checks if eps is greater than 0."""
         if self.eps <= 0:
             raise epsError("eps has to be greater than 0")
 
     def _check_minClSz(self):
+        """Checks if minClSiz is greater than 0."""
         if self.minClSz <= 0:
-            raise minClSzError("Parameter eps has to be greater than 0!")
+            raise minClSzError("Parameter minClSiz has to be greater than 0!")
 
     def _check_nPrev(self):
-        if self.nPrev <= 0:
-            raise nPrevError("Parameter nPrev has to be an integer greater than 0!")
+        """Checks if nPrev is greater than 0."""
+        if self.nPrev <= 0 and isinstance(self.nPrev, int):
+            raise nPrevError("Parameter nPrev has to be an integer greater than 0 and an integer!")
 
     def _run_input_checks(self):
         """Run input checks."""
@@ -134,7 +132,7 @@ class detectCollev:
         self._check_frame_column()
 
     def _select_necessary_columns(
-        self, data: pd.DataFrame, frame_col: str, id_col: str, pos_col: list, bin_col: Union[str, None]
+        self, data: pd.DataFrame, frame_col: str, id_col: Union[str, None], pos_col: list, bin_col: Union[str, None]
     ) -> pd.DataFrame:
         """Select necessary input colums from input data into dataframe.
 
@@ -148,10 +146,8 @@ class detectCollev:
         Returns (DataFrame):
             Filtered columns necessary for calculation.
         """
-        if bin_col is None:
-            columns = [frame_col, id_col]
-        else:
-            columns = [frame_col, id_col, bin_col]
+        columns = [frame_col, id_col, bin_col]
+        columns = [col for col in columns if col]
         columns.extend(pos_col)
         neccessary_data = data[columns].copy(deep=True)
         return neccessary_data
@@ -170,7 +166,7 @@ class detectCollev:
             data = data[data[bin_meas_col] > 0]
         return data
 
-    def _dbscan(self, x: pd.DataFrame, collid_col: str) -> pd.DataFrame:
+    def _dbscan(self, x: np.ndarray) -> list:
         """Dbscan method to run and merge the cluster id labels to the original dataframe.
 
         Arguments:
@@ -180,29 +176,36 @@ class detectCollev:
         Returns (Dataframe):
             Dataframe with added collective id column detected by DBSCAN.
         """
-        pos_array = x[self.pos_cols_inputdata]
-        db_array = DBSCAN(eps=self.eps, min_samples=self.minClSz, algorithm="kd_tree").fit(pos_array)
+        db_array = DBSCAN(eps=self.eps, min_samples=self.minClSz, algorithm="kd_tree").fit(x[:, 1:])
         cluster_labels = db_array.labels_
-        cluster_list = [id + 1 for id in cluster_labels.tolist()]
-        x[collid_col] = cluster_list
-        x = x[x[collid_col] > 0]
-        return x
+        cluster_list = [id + 1 if id > -1 else np.nan for id in cluster_labels]
+        return cluster_list
 
-    def _run_dbscan(self, data: pd.DataFrame, frame: str, clid_frame: str) -> pd.DataFrame:
+    def _run_dbscan(self, data: pd.DataFrame, frame: str, clid_frame: str, id_column: Union[str, None]) -> pd.DataFrame:
         """Apply dbscan method to every group i.e. frame.
 
         Arguments:
             data (DataFrame): Must contain position columns and frame columns.
             frame (str): Name of frame column in data.
             clid_frame (str): column to be created containing the output cluster ids from dbscan.
+            id_column (str | None): track_id column
 
         Returns (Dataframe):
             Dataframe with added collective id column detected by DBSCAN for every frame.
         """
-        data_gb = data.groupby([frame])
-        db_labels = data_gb.apply(lambda x: self._dbscan(x, clid_frame))
-        db_labels = db_labels.reset_index(drop=True)
-        return db_labels
+        if self.id_column:
+            data = data.sort_values([frame, id_column]).reset_index(drop=True)
+        else:
+            data = data.sort_values([frame]).reset_index(drop=True)
+        subset = [frame] + self.pos_cols_inputdata
+        data_np = data[subset].to_numpy(dtype=np.float64)
+        grouped_array = np.split(data_np, np.unique(data_np[:, 0], axis=0, return_index=True)[1][1:])
+        # map dbscan to grouped_array
+        out = [self._dbscan(i) for i in grouped_array]
+        out_list = [item for sublist in out for item in sublist]
+        data[clid_frame] = out_list
+        data = data.dropna()
+        return data
 
     def _make_db_id_unique(self, db_data: pd.DataFrame, frame: str, clid_frame, clid) -> pd.DataFrame:
         """Make db_scan cluster id labels unique by adding the\
@@ -217,21 +220,18 @@ class detectCollev:
         Returns (Dataframe):
             Dataframe with unique collective events.
         """
-        db_data_n = db_data[[clid_frame, frame]]
-        db_gp = db_data_n.groupby([frame])
-        db_max = db_gp.max().reset_index()
-        db_max["PreviouMax"] = db_max[clid_frame].shift(1).fillna(0)
-        db_max["PreviouMax_cumsum"] = db_max["PreviouMax"].cumsum()
-        db_data = db_max[[frame, "PreviouMax_cumsum"]].merge(db_data, on=frame)
-        db_data[self.clidFrame] += db_data["PreviouMax_cumsum"]
-        db_data = db_data.drop(columns=["PreviouMax_cumsum"])
-        db_data[clid] = db_data[clid_frame].astype(int64)
+        db_data_np = db_data[[frame, clid_frame]].to_numpy()
+        grouped_array = np.split(db_data_np[:, 1], np.unique(db_data_np[:, 0], axis=0, return_index=True)[1][1:])
+        max_array = [0] + [np.max(i) for i in grouped_array]
+        out = [np.add(value, np.cumsum(max_array)[i]) for i, value in enumerate(grouped_array)]
+        db_gp = np.concatenate(out)
+        db_data[clid] = db_gp.astype(np.int64)
         return db_data
 
     def _nearest_neighbour(
         self,
-        data_a: pd.DataFrame,
-        data_b: pd.DataFrame,
+        data_a: np.ndarray,
+        data_b: np.ndarray,
         nbr_nearest_neighbours: int = 1,
     ):
         """Calculates nearest neighbour in from data_a\
@@ -245,8 +245,8 @@ class detectCollev:
         Returns (tuple):
             Returns tuple of 2 arrays containing nearest neighbour indices and distances.
         """
-        kdB = KDTree(data=data_a.values)
-        nearest_neighbours = kdB.query(data_b.values, k=nbr_nearest_neighbours)
+        kdB = KDTree(data=data_a)
+        nearest_neighbours = kdB.query(data_b, k=nbr_nearest_neighbours)
         return nearest_neighbours
 
     def _link_clusters_between_frames(self, data: pd.DataFrame, frame: str, colid: str) -> pd.DataFrame:
@@ -261,40 +261,49 @@ class detectCollev:
         Returns (Dataframe):
             Pandas dataframe with tracked collective ids.
         """
-        # loop over all frames to link detected clusters iteratively
-        for t in sorted(data[frame].unique())[1:]:
-            prev_frame = data[(data[frame] >= (t - self.nPrev)) & (data[frame] < (t))].copy(deep=True)
-            current_frame = data[data[frame] == t].copy(deep=True)
-            # only continue if objects were detected in previous frame
-            if not prev_frame.empty:
-                colid_current = current_frame[colid]
-                # loop over unique cluster in frame
-                for cluster in sorted(colid_current.unique()):
-                    pos_current = current_frame[self.posCols][current_frame[colid] == cluster]
+        essential_cols = [frame, colid] + self.posCols
+        data_essential = data[essential_cols]
+        data_np = data_essential.to_numpy()
+        data_np_frame = data_np[:, 0]
 
-                    pos_previous = prev_frame[self.posCols]
+        # loop over all frames to link detected clusters iteratively
+        for t in np.unique(data_np_frame, return_index=False)[1:]:
+            prev_frame = data_np[(data_np_frame >= (t - self.nPrev)) & (data_np_frame < t)]
+            current_frame = data_np[data_np_frame == t]
+            # only continue if objects were detected in previous frame
+            if prev_frame.size:
+                colid_current = current_frame[:, 1]
+                # loop over unique cluster in frame
+                for cluster in np.unique(colid_current, return_index=False):
+                    pos_current = current_frame[:, 2:][colid_current == cluster]
+                    pos_previous = prev_frame[:, 2:]
                     # calculate nearest neighbour between previoius and current frame
                     nn_dist, nn_indices = self._nearest_neighbour(pos_previous, pos_current)
-                    prev_cluster_nbr_all = prev_frame.iloc[nn_indices][colid]
-                    prev_cluster_nbr_eps = prev_cluster_nbr_all[nn_dist <= self.eps]
+                    prev_cluster_nbr_all = prev_frame[nn_indices, 1]
+                    prev_cluster_nbr_eps = prev_cluster_nbr_all[(nn_dist <= self.eps)]
                     # only continue if neighbours
                     # were detected within eps distance
-                    if not prev_cluster_nbr_eps.empty:
-                        prev_clusternbr_eps_unique = prev_cluster_nbr_eps.unique()
-                        colid_subset = data[(data[frame] == t) & (data[colid] == cluster)][colid]
-                        subset_index_list = list(colid_subset.index.values)
-                        # propagate cluster id from previous frame
-                        # if multiple clusters in the eps of nearest neighbour
-                        if len(prev_clusternbr_eps_unique) > 0:
-                            data.loc[subset_index_list, colid] = prev_cluster_nbr_all.values
+                    if prev_cluster_nbr_eps.size:
+                        prev_clusternbr_eps_unique = np.unique(prev_cluster_nbr_eps, return_index=False)
+                        if prev_clusternbr_eps_unique.size > 0:
+                            # propagate cluster id from previous frame
+                            data_np[((data_np_frame == t) & (data_np[:, 1] == cluster)), 1] = prev_cluster_nbr_all
 
-        data[colid] = data.groupby(colid).ngroup() + 1
+        np_out = data_np[:, 1]
+        sorter = np_out.argsort()[::1]
+        grouped_array = np.split(np_out[sorter], np.unique(np_out[sorter], axis=0, return_index=True)[1][1:])
+        np_grouped_consecutive = (np.repeat(i + 1, value.size) for i, value in enumerate(grouped_array))
+        out_array = np.array([item for sublist in np_grouped_consecutive for item in sublist])
+        data[colid] = out_array[sorter.argsort()].astype('int64')
         return data
 
     def _get_export_columns(self):
         """Get columns that will contained in the pandas dataframe returned by the run method."""
         self.pos_cols_inputdata = [col for col in self.posCols if col in self.columns_input]
-        columns = [self.frame_column, self.id_column]
+        if self.id_column:
+            columns = [self.frame_column, self.id_column]
+        else:
+            columns = [self.frame_column]
         columns.extend(self.pos_cols_inputdata)
         columns.append(self.clid_column)
         return columns
@@ -324,6 +333,7 @@ class detectCollev:
             data=active_data,
             frame=self.frame_column,
             clid_frame=self.clidFrame,
+            id_column=self.id_column,
         )
         db_data = self._make_db_id_unique(
             db_data,
@@ -339,4 +349,10 @@ class detectCollev:
         else:
             df_to_merge = self.input_data
         tracked_events = tracked_events.merge(df_to_merge, how="left")
+        tracked_events = tracked_events
         return tracked_events
+
+
+if __name__ == "__main__":
+    df = pd.read_csv("C:/Users/benig/Documents/tracks_191021_wt_curated_smoothedXYZ_interpolated_binarised.csv")
+    ts = detectCollev(df, 20, 5, 1, ['posx', 'posy', 'posz'], 'time', 'trackID', 'meas.bin').run()
