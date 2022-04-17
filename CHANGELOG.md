@@ -1,4 +1,11 @@
 # Changelog
+## [0.1.2] - Changelog for upcoming release
+### Changed
+- binarize_detrend: converted pandas operations to numpy for performance improvements
+- detect_events: converted pandas operations to numpy for performance imporovements
+- stats: converted pandas operations to numpy for performance improvements
+- various small changes
+- updated docstrings to match changes
 
 ## [0.1.1] - 2022-04-04
 ### Added
