@@ -46,6 +46,10 @@ Arcos4py can be installed from PyPI with:
 
         pip install arcos4py
 
+Napari Plugin
+-------------
+Arcos4py is also available as a Napari Plugin [arcos-gui](https://github.com/bgraedel/arcos-gui). 
+[arcos-gui](https://github.com/bgraedel/arcos-gui) can simplify parameter finding and visualization.
 ## Credits
 
 [Maciej Dobrzynski](https://github.com/dmattek) created the original ARCOS algorithm.

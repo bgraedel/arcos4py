@@ -6,75 +6,67 @@ Example:
     >>> plot.plot_detrended()
 """
 
+from __future__ import annotations
+
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
 
+
 class dataPlots:
-    """Plot different metrics of input data"""
+    """Plot different metrics of input data.
+
+    Attributes:
+        data (Dataframe): containing ARCOS data.
+        frame (str): name of frame column in data.
+        measurement (str): name of measurement column in data.
+        id (str): name of track id column.
+    """
 
     def __init__(self, data: pd.DataFrame, frame: str, measurement: str, id: str):
         """Plot different metrics such as histogram, position-t and density.
 
         Arguments:
-            data: Dataframe
-                containing ARCOS data.
-
-            frame: String
-                name of frame column in data.
-
-            measurement: String
-                name of measurement column in data.
-
-            detrended: String
-                name of detrended column with detrended data.
-
-            id: String
-                name of track id column.
+            data (Dataframe): containing ARCOS data.
+            frame (str): name of frame column in data.
+            measurement (str): name of measurement column in data.
+            id (str): name of track id column.
         """
         self.data = data
         self.id = id
         self.frame = frame
 
-
     def position_t_plot(self, posCol: set[str] = {'x'}, n: int = 20):
         """Plots X and Y over T to visualize tracklength.
 
-        Arguments: String
-            posCol: set,
-                containing names of position columns in data.
-
-            n: int,
-                number of samples to plot.
+        Arguments:
+            posCol (set): containing names of position columns in data.
+            n (int): number of samples to plot.
         """
         sample = pd.Series(self.data[self.id].unique()).sample(n)
         pd_from_r_df = self.data.loc[self.data[self.id].isin(sample)]
-        fig, axes = plt.subplots(1,len(posCol), figsize=(6,3))
+        fig, axes = plt.subplots(1, len(posCol), figsize=(6, 3))
         for label, df in pd_from_r_df.groupby(self.id):
             for index, value in enumerate(posCol):
-                df.plot(x=self.frame, y =value, ax=axes[index], legend=None) 
+                df.plot(x=self.frame, y=value, ax=axes[index], legend=None)
         for index, value in enumerate(posCol):
             axes[index].set_title(value)
         plt.show()
 
     def density_plot(self, measurement_col: str, *args, **kwargs):
         """Density plot of measurement.
-        Uses Seaborn distplot.
+
+        Uses Seaborn distplot to plot measurement density.
 
         Arguments:
-            measurement_col: str,
-                name of measurement column.
-
-            *args, **kwargs:
-                arguments and keyword arguments passed on to seaborn distplot function.
+            measurement_col (str): name of measurement column.
+            *args (Any): arguments passed on to seaborn histplot function.
+            **kwargs (Any): keyword arguments passed on to seaborn histplot function.
         """
-       
-        plot = sns.displot(self.data[measurement_col], kind = "kde",
-        palette="pastel",
-        label = measurement_col, *args, **kwargs)
-        
+        sns.displot(self.data[measurement_col], kind="kde", palette="pastel", label=measurement_col, *args, **kwargs)
+
         # Plot formatting
         plt.legend(prop={'size': 10})
         plt.title('Density Plot of Measurement')
@@ -83,21 +75,19 @@ class dataPlots:
         plt.show()
 
     def histogram(self, bins: str = 'auto', *args, **kwargs):
-        """histogram of tracklenght.
-        Uses seaborn histplot function.
+        """Histogram of tracklenght.
+
+        Uses seaborn histplot function to plot tracklenght histogram.
 
         Arguments:
-            bins: 
-                number or width of bins in histogram
-
-            *args, **kwargs:
-                arguments and keyword arguments passed on to seaborn histplot function.
+            bins (str): number or width of bins in histogram
+            *args (Any): arguments passed on to seaborn histplot function.
+            **kwargs (Any): keyword arguments passed on to seaborn histplot function.
         """
         # Draw histogram
         track_length = self.data.groupby(self.id).size()
-        plot = sns.histplot(track_length,
-        label = "Track Length", bins = bins, *args, **kwargs)
-            
+        sns.histplot(track_length, label="Track Length", bins=bins, *args, **kwargs)
+
         # Plot formatting
         plt.title('Track length Histogram')
         plt.xlabel('Track Length')
@@ -106,26 +96,25 @@ class dataPlots:
 
 
 class plotOriginalDetrended:
-    """Plot different detrended vs original data."""
+    """Plot different detrended vs original data.
+
+    Attributes:
+        data (Dataframe): containing ARCOS data.
+        frame (str): name of frame column in data.
+        measurement (str): name of measurement column in data.
+        detrended (str): name of detrended column with detrended data.
+        id (str): name of track id column.
+    """
 
     def __init__(self, data: pd.DataFrame, frame: str, measurement: str, detrended: str, id: str):
         """Plot detrended vs original data.
 
         Arguments:
-            data: Dataframe
-                containing ARCOS data.
-
-            frame: String
-                name of frame column in data.
-
-            measurement: String
-                name of measurement column in data.
-
-            detrended: String
-                name of detrended column with detrended data.
-
-            id: String
-                name of track id column.
+            data (Dataframe): containing ARCOS data.
+            frame (str): name of frame column in data.
+            measurement (str): name of measurement column in data.
+            detrended (str): name of detrended column with detrended data.
+            id (str): name of track id column.
         """
         self.data = data
         self.measurement = measurement
@@ -139,14 +128,9 @@ class plotOriginalDetrended:
         """Method to plot detrended vs original data.
 
         Arguments:
-            n_samples: int,
-                Number of tracks to plot.
-
-            subplots:
-                Number of subplots, should be approx. one per sample.
-
-            plotsize:
-                Size of generated plot.
+            n_samples (int): Number of tracks to plot.
+            subplots (tuple): Number of subplots, should be approx. one per sample.
+            plotsize (tuple): Size of generated plot.
 
         Returns:
             Matplotlib figure of detrended vs original data.
@@ -169,16 +153,19 @@ class plotOriginalDetrended:
         fig.legend(handles, labels, loc="lower right")
         return fig
 
+
 class statsPlots:
     """Plot data generated by the stats module.
+
+    Attributes:
+        data (DataFrame): containing ARCOS stats data.
     """
 
     def __init__(self, data: pd.DataFrame):
         """Plot detrended vs original data.
 
         Arguments:
-            data: Dataframe
-                containing ARCOS stats data.
+            data (DataFrame): containing ARCOS stats data.
         """
         self.data = data
 
@@ -186,18 +173,11 @@ class statsPlots:
         """Scatterplot of collective event duration.
 
         Arguments:
-            total_size: str,
-                name of total size column.
-
-            duration: str,
-                name of duration column.
-
-            point_size: int,
-                scatterplot point size.
-
-            *args, **kwargs:
-                arguments and keyword arguments passed on to seaborn scatterplot function.
+            total_size (str): name of total size column.
+            duration (str):, name of column with collective event duration.
+            point_size (int): scatterplot point size.
+            *args (Any): Arguments passed on to seaborn scatterplot function.
+            **kwargs (Any): Keyword arguments passed on to seaborn scatterplot function.
         """
-        plot = sns.scatterplot(x = self.data[total_size], y = self.data[duration],  s=point_size, *args, **kwargs)
+        plot = sns.scatterplot(x=self.data[total_size], y=self.data[duration], s=point_size, *args, **kwargs)
         return plot
-

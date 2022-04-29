@@ -22,7 +22,7 @@ the [Github repo][].
 You can either clone the public repository:
 
 ``` console
-$ git clone  https://github.com/bgraedel/arcos4py
+$ git clone https://github.com/bgraedel/arcos4py
 ```
 
 Or download the [tarball][]:
