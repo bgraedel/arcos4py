@@ -17,7 +17,10 @@ import pandas as pd
 
 
 class interpolation:
-    """Interpolate nan values in a numpy array."""
+    """Interpolate nan values in a pandas dataframe.
+    
+    Uses pandas.interpolate with linear interpolation.
+    """
 
     def __init__(self, data: pd.DataFrame):
         """Interpolate nan values in a numpy array.
