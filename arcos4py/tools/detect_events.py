@@ -222,7 +222,7 @@ class detectCollev:
         """
         db_data_np = db_data[[frame, clid_frame]].to_numpy()
         grouped_array = np.split(db_data_np[:, 1], np.unique(db_data_np[:, 0], axis=0, return_index=True)[1][1:])
-        max_array = [0] + [np.max(i) for i in grouped_array if i.size !=  0]
+        max_array = [0] + [np.max(i) for i in grouped_array if i.size != 0]
         out = [np.add(value, np.cumsum(max_array)[i]) for i, value in enumerate(grouped_array)]
         db_gp = np.concatenate(out)
         db_data[clid] = db_gp.astype(np.int64)
