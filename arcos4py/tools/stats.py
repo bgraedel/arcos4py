@@ -25,10 +25,10 @@ class calcCollevStats:
         Arguments:
             data (np.ndarray): Containing a single collective event.
 
-        Returns (np.ndarray):
-            Array containing collid, duration, tot_size, min_size,
-            max_size, "nd_frame, first_frame_centroid and last_frame_centroid
-            of the current collective event.
+        Returns: 
+            np.ndarray: Array containing collid, duration, tot_size, min_size,
+                max_size, "nd_frame, first_frame_centroid and last_frame_centroid
+                of the current collective event.
         """
         coll_dur = max(data[:, 0]) - min(data[:, 0]) + 1
         coll_total_size = np.unique(data[:, 1]).size
@@ -79,11 +79,11 @@ class calcCollevStats:
             posCol (list | None): Contains names of position columns. If None coordinates of
                 start and end frame are not calcualted
 
-        Returns (DataFrame):
-            DataFrame containing "collid", "duration", "total_size",
-            "min_size","max_size", "start_frame", "end_frame",
-            "first_frame_centroid" and "last_frame_centroid"
-            of all collective events.
+        Returns: 
+            DataFrame: DataFrame containing "collid", "duration", "total_size",
+                "min_size","max_size", "start_frame", "end_frame",
+                "first_frame_centroid" and "last_frame_centroid"
+                of all collective events.
         """
         cols = [
             'collid',
@@ -127,11 +127,11 @@ class calcCollevStats:
             posCol (list | None): Contains names of position columns. If None coordinates of
                 start and end frame are not calcualted
 
-        Returns (DataFrame):
-            DataFrame containing "collid", "duration", "total_size",
-            "min_size","max_size", "start_frame", "end_frame",
-            "first_frame_centroid" and "last_frame_centroid"
-            of all collective events.
+        Returns:
+            DataFrame: DataFrame containing "collid", "duration", "total_size",
+                "min_size","max_size", "start_frame", "end_frame",
+                "first_frame_centroid" and "last_frame_centroid"
+                of all collective events.
         """
         if data.empty:
             return data

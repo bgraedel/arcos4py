@@ -71,8 +71,8 @@ class dataPlots:
             posCol (set): containing names of position columns in data.
             n (int): number of samples to plot.
 
-        Returns (fig, axes):
-            FacetGrid of density density plot.
+        Returns:
+            fig, axes: Matplotlib fig and axes of density plot.
         """
         sample = pd.Series(self.data[self.id].unique()).sample(n)
         pd_from_r_df = self.data.loc[self.data[self.id].isin(sample)]
@@ -100,8 +100,8 @@ class dataPlots:
             *args (Any): arguments passed on to seaborn histplot function.
             **kwargs (Any): keyword arguments passed on to seaborn histplot function.
 
-        Returns (FacetGrid):
-            FacetGrid of density density plot.
+        Returns:
+            FacetGrid: Seaborn FacetGrid of density density plot.
         """
         plot = sns.displot(
             self.data[self.measurement], kind="kde", palette="pastel", label=self.measurement, *args, **kwargs
@@ -123,8 +123,8 @@ class dataPlots:
             *args (Any): arguments passed on to seaborn histplot function.
             **kwargs (Any): keyword arguments passed on to seaborn histplot function.
 
-        Returns (AxesSubplot):
-            Matplotlib axes of histogram.
+        Returns:
+            AxesSubplot: Matplotlib AxesSubplot of histogram.
         """
         # Draw histogram
         track_length = self.data.groupby(self.id).size()
@@ -173,8 +173,8 @@ class plotOriginalDetrended:
             subplots (tuple): Number of subplots, should be approx. one per sample.
             plotsize (tuple): Size of generated plot.
 
-        Returns (fig, Axes):
-            Matplotlib figure and axes2d of detrended vs original data.
+        Returns:
+            Fig, Axes: Matplotlib figure and axes2d of detrended vs original data.
         """
         vals = np.random.choice(self.data[self.id].unique(), n_samples, replace=False)
         self.data = self.data.set_index(self.id).loc[vals].reset_index()
@@ -220,7 +220,8 @@ class statsPlots:
             *args (Any): Arguments passed on to seaborn scatterplot function.
             **kwargs (Any): Keyword arguments passed on to seaborn scatterplot function.
 
-        Returns (Axes): Axes object of scatterplot
+        Returns:
+            Axes: Matplotlib Axes object of scatterplot
         """
         plot = sns.scatterplot(x=self.data[total_size], y=self.data[duration], s=point_size, *args, **kwargs)
         return plot
@@ -233,7 +234,7 @@ class NoodlePlot:
         df (pd.DataFrame): DataFrame containing collective events from arcos.
         colev (str): Name of the collective event column in df.
         trackid (str): Name of the track column in df.
-        frame: (str): Name of the frame column in df.
+        frame (str): Name of the frame column in df.
         posx (str): Name of the X coordinate column in df.
         posy (str): Name of the Y coordinate column in df.
         posz (str): Name of the Z coordinate column in df,
@@ -256,7 +257,7 @@ class NoodlePlot:
             df (pd.DataFrame): DataFrame containing collective events from arcos.
             colev (str): Name of the collective event column in df.
             trackid (str): Name of the track column in df.
-            frame: (str): Name of the frame column in df.
+            frame (str): Name of the frame column in df.
             posx (str): Name of the X coordinate column in df.
             posy (str): Name of the Y coordinate column in df.
             posz (str | None): Name of the Z coordinate column in df,
@@ -296,8 +297,9 @@ class NoodlePlot:
             posz (str): Name of the Z coordinate column in df,
                 or None if no z column.
 
-        Returns (list[np.ndarray], np.ndarray): List of collective events data,
-        colors for each collective event.
+        Returns: 
+            list[np.ndarray], np.ndarray: List of collective events data,
+            and colors for each collective event.
         """
         # values need to be sorted to group with numpy
         df.sort_values([colev, trackid], inplace=True)
@@ -339,14 +341,14 @@ class NoodlePlot:
         """Create Noodle Plot of cell tracks, colored by collective event id.
 
         Arguments:
-            projection_axis (str): Specify on which with witch coordinate the noodle
+            projection_axis (str): Specify with witch coordinate the noodle
                 plot should be drawn. Has to be one of the posx, posy or posz arguments
                 passed in during the class instantiation process.
             color_cylce (list[str]): List of hex color values or string names
-                (i.e. ['red', 'yellow']) used to color collecitve events.
-                cycles through list and assigns
+                (i.e. ['red', 'yellow']) used to color collecitve events. Cycles through list.
 
-        Returns (fig, axes): Matplotlib figure and axes are returned for the noodle plot.
+        Returns: 
+            fig, axes: Matplotlib figure and axes are returned for the noodle plot.
         """
         if projection_axis not in [self.posx, self.posy, self.posz]:
             raise ValueError(f"projection_axis has to be one of {[self.posx, self.posy, self.posz]}")

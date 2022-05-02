@@ -60,8 +60,8 @@ class filterCollev:
             min_duration (str): minimal duration of a collective event for it to be returned.
             min_size (int): minimal size for a collective event to be returned.
 
-        Returns (Dataframe):
-            Dataframe containing filtered collective events.
+        Returns:
+            DataFrame: Dataframe containing filtered collective events.
 
         """
         collev_stats = collev_stats[
@@ -80,8 +80,8 @@ class filterCollev:
             coll_duration (int): Minimal duration of collective events to be selected.
             coll_total_size (int): Minimal total size of collective events to be selected.
 
-        Returns (DataFrame):
-            Returns pandas dataframe containing filtered collective events
+        Returns:
+             Returns pandas dataframe containing filtered collective events
         """
         if self.data.empty:
             return self.data

@@ -36,7 +36,8 @@ class interpolation:
     def interpolate(self) -> pd.DataFrame:
         """Interpolate nan and missing values.
 
-        Returns (DataFrame): Interpolated input data.
+        Returns: 
+            DataFrame: Interpolated input data.
         """
         self.data = self.data.interpolate(axis=0)
 
@@ -63,7 +64,7 @@ class clipMeas:
             clip_high (float): Upper clipping boundry (quantille).
 
         Returns:
-            Array with lower quantile and array with upper quantile.
+            np.ndarray: Array with lower quantile and array with upper quantile.
 
         """
         quantille_low = np.quantile(data, clip_low, keepdims=True)
@@ -77,7 +78,8 @@ class clipMeas:
             clip_low (float): Lower clipping boundary (quantile).
             clip_high (float): Upper clipping boundry (quantille).
 
-        Returns (ndarray): A clipped array of the input data.
+        Returns: 
+            np.ndarray: A clipped array of the input data.
         """
         low, high = self._calculate_percentile(self.data, clip_low, clip_high)
         out = self.data.clip(low, high)

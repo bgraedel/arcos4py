@@ -143,8 +143,8 @@ class detectCollev:
             pos_col (list): string representation of position columns in data.
             bin_col (str): Name of binary column.
 
-        Returns (DataFrame):
-            Filtered columns necessary for calculation.
+        Returns:
+            DataFrame: Filtered columns necessary for calculation.
         """
         columns = [frame_col, id_col, bin_col]
         columns = [col for col in columns if col]
@@ -159,8 +159,8 @@ class detectCollev:
             data (DataFrame): Dataframe containing necessary columns.
             bin_meas_col (str|None): Either name of the binary column or None if no such column exists.
 
-        Returns (DataFrame):
-            Filtered pandas DataFrame.
+        Returns:
+            DataFrame: Filtered pandas DataFrame.
         """
         if bin_meas_col is not None:
             data = data[data[bin_meas_col] > 0]
@@ -170,11 +170,11 @@ class detectCollev:
         """Dbscan method to run and merge the cluster id labels to the original dataframe.
 
         Arguments:
-            x (DataFrame): With unique frame and position columns.
+            x (np.ndarray): With unique frame and position columns.
             collid_col (str): Column to be created containing cluster-id labels.
 
-        Returns (Dataframe):
-            Dataframe with added collective id column detected by DBSCAN.
+        Returns:
+            list[np.ndarray]: list with added collective id column detected by DBSCAN.
         """
         db_array = DBSCAN(eps=self.eps, min_samples=self.minClSz, algorithm="kd_tree").fit(x[:, 1:])
         cluster_labels = db_array.labels_
@@ -190,8 +190,8 @@ class detectCollev:
             clid_frame (str): column to be created containing the output cluster ids from dbscan.
             id_column (str | None): track_id column
 
-        Returns (Dataframe):
-            Dataframe with added collective id column detected by DBSCAN for every frame.
+        Returns:
+            DataFrame: Dataframe with added collective id column detected by DBSCAN for every frame.
         """
         if self.id_column:
             data = data.sort_values([frame, id_column]).reset_index(drop=True)
@@ -217,8 +217,8 @@ class detectCollev:
             clid_frame (str): Column name of cluster-id per frame.
             clid (str): Column name of unique cluster ids to be returned.
 
-        Returns (Dataframe):
-            Dataframe with unique collective events.
+        Returns:
+            DataFrame: Dataframe with unique collective events.
         """
         db_data_np = db_data[[frame, clid_frame]].to_numpy()
         grouped_array = np.split(db_data_np[:, 1], np.unique(db_data_np[:, 0], axis=0, return_index=True)[1][1:])
@@ -242,8 +242,8 @@ class detectCollev:
             data_b (DataFrame): containing position values.
             nbr_nearest_neighbours (int): of the number of nearest neighbours to be calculated.
 
-        Returns (tuple):
-            Returns tuple of 2 arrays containing nearest neighbour indices and distances.
+        Returns:
+            tuple(np.ndarray, np.ndarray): Returns tuple of 2 arrays containing nearest neighbour indices and distances.
         """
         kdB = KDTree(data=data_a)
         nearest_neighbours = kdB.query(data_b, k=nbr_nearest_neighbours)
@@ -258,8 +258,8 @@ class detectCollev:
             frame (str): Frame column.
             colid (str): Colid column.
 
-        Returns (Dataframe):
-            Pandas dataframe with tracked collective ids.
+        Returns:
+            DataFrame: Pandas dataframe with tracked collective ids.
         """
         essential_cols = [frame, colid] + self.posCols
         data_essential = data[essential_cols]
