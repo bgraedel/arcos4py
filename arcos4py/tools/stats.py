@@ -55,7 +55,8 @@ class calcCollevStats:
                 coll_end_frame,
                 coll_start_coord,
                 coll_end_coord,
-            ]
+            ],
+            dtype=object,
         )
         return d
 

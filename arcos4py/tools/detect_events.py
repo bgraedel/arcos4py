@@ -351,8 +351,3 @@ class detectCollev:
         tracked_events = tracked_events.merge(df_to_merge, how="left")
         tracked_events = tracked_events
         return tracked_events
-
-
-if __name__ == "__main__":
-    df = pd.read_csv("C:/Users/benig/Documents/tracks_191021_wt_curated_smoothedXYZ_interpolated_binarised.csv")
-    ts = detectCollev(df, 1, 5, 1, ['posx', 'posy', 'posz'], 'time', 'trackID', 'meas.bin').run()
