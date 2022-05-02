@@ -188,7 +188,7 @@ class binData(detrender):
             colMeas (str): Measurement column in x on which detrending and rescaling is performed.
             colFrame (str): Frame column in Time-series data. Used for sorting.
 
-        Returns: 
+        Returns:
             DataFrame: Dataframe containing binarized data, rescaled data and the original columns.
         """
         col_resc = f"{colMeas}.resc"

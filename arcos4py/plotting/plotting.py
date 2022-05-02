@@ -297,7 +297,7 @@ class NoodlePlot:
             posz (str): Name of the Z coordinate column in df,
                 or None if no z column.
 
-        Returns: 
+        Returns:
             list[np.ndarray], np.ndarray: List of collective events data,
             and colors for each collective event.
         """
@@ -347,7 +347,7 @@ class NoodlePlot:
             color_cylce (list[str]): List of hex color values or string names
                 (i.e. ['red', 'yellow']) used to color collecitve events. Cycles through list.
 
-        Returns: 
+        Returns:
             fig, axes: Matplotlib figure and axes are returned for the noodle plot.
         """
         if projection_axis not in [self.posx, self.posy, self.posz]:

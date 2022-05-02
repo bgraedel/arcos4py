@@ -25,7 +25,7 @@ class calcCollevStats:
         Arguments:
             data (np.ndarray): Containing a single collective event.
 
-        Returns: 
+        Returns:
             np.ndarray: Array containing collid, duration, tot_size, min_size,
                 max_size, "nd_frame, first_frame_centroid and last_frame_centroid
                 of the current collective event.
@@ -79,7 +79,7 @@ class calcCollevStats:
             posCol (list | None): Contains names of position columns. If None coordinates of
                 start and end frame are not calcualted
 
-        Returns: 
+        Returns:
             DataFrame: DataFrame containing "collid", "duration", "total_size",
                 "min_size","max_size", "start_frame", "end_frame",
                 "first_frame_centroid" and "last_frame_centroid"
