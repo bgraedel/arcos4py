@@ -6,7 +6,7 @@ to detect and analyse collective phenomena.
 
 __author__ = """Benjamin Graedel"""
 __email__ = "benjamin.graedel@unibe.ch"
-__version__ = '0.1.1'
+__version__ = '0.1.2'
 
 from .arcos4py import ARCOS
 
