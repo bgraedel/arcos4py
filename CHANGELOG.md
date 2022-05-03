@@ -1,5 +1,5 @@
 # Changelog
-## [0.1.2] - Changelog for upcoming release
+## [0.1.2] - 2022-05-03
 ### Added
 - NoodlePlot for collective events
 
