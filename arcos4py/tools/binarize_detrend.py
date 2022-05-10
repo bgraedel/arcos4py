@@ -105,7 +105,17 @@ class detrender:
 
         Returns (np.ndarray): Dataframe containing rescaled column.
         """
-        grouped_array = np.split(x[:, meas_index], np.unique(x[:, group_index], axis=0, return_index=True)[1][1:])
+        #################################################
+        meas_array = x[:, meas_index].astype('float64')
+        try:
+            group_array = x[:, group_index].astype('int64')
+        except ValueError:
+            try:
+                group_array = x[:, group_index].astype('float64')
+            except ValueError:
+                group_array = x[:, group_index].astype('U6')
+
+        grouped_array = np.split(meas_array, np.unique(group_array, axis=0, return_index=True)[1][1:])
         out = [self._run_detrend(x) for x in grouped_array]
         out_list = [item for sublist in out for item in sublist]
         return np.array(out_list)
