@@ -100,8 +100,8 @@ class detrender:
 
         Arguments:
             x (np.ndarray): Time series data for smoothing.
-            group_index (int): Index of measurement column in x.
-            meas_index (int): Index of id column in x.
+            group_index (int): Index of id column in x.
+            meas_index (int): Index of measurement column in x.
 
         Returns (np.ndarray): Dataframe containing rescaled column.
         """
