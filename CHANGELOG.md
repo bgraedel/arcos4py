@@ -1,4 +1,8 @@
 # Changelog
+## [0.1.3] - Upcoming release
+### Fixed
+- Bug where if object id was a string, splitting arrays into groups would fail. 
+
 ## [0.1.2] - 2022-05-03
 ### Added
 - NoodlePlot for collective events
