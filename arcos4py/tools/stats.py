@@ -6,11 +6,11 @@ Example:
     >>> out = test.calculate(data = data,frame_column = "frame", collid_column = "collid")
 """
 
-from multiprocessing.sharedctypes import Value
 from typing import Union
 
 import numpy as np
 import pandas as pd
+
 
 class calcCollevStats:
     """Class to calculate statistics of collective events."""
@@ -118,7 +118,6 @@ class calcCollevStats:
         df = pd.DataFrame(out_list, columns=cols)
         return df
 
-
     def calculate(
         self,
         data: pd.DataFrame,
@@ -148,8 +147,15 @@ class calcCollevStats:
         colev_stats = self._get_collev_duration(data, frame_column, collid_column, obj_id_column, posCol)
         return colev_stats
 
+
 if __name__ == '__main__':
     df = pd.read_csv("/mnt/c/Users/benig/Desktop/arcos_data.csv")
     print(df.columns)
-    out = calcCollevStats().calculate(df, 'Image_Metadata_T', 'collid', 'track_id_uni',['objNuclei_filtered_Location_Center_X', 'objNuclei_filtered_Location_Center_Y'])
+    out = calcCollevStats().calculate(
+        df,
+        'Image_Metadata_T',
+        'collid',
+        'track_id_uni',
+        ['objNuclei_filtered_Location_Center_X', 'objNuclei_filtered_Location_Center_Y'],
+    )
     print(out)
