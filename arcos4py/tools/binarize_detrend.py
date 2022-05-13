@@ -100,12 +100,22 @@ class detrender:
 
         Arguments:
             x (np.ndarray): Time series data for smoothing.
-            group_index (int): Index of measurement column in x.
-            meas_index (int): Index of id column in x.
+            group_index (int): Index of id column in x.
+            meas_index (int): Index of measurement column in x.
 
         Returns (np.ndarray): Dataframe containing rescaled column.
         """
-        grouped_array = np.split(x[:, meas_index], np.unique(x[:, group_index], axis=0, return_index=True)[1][1:])
+        #################################################
+        meas_array = x[:, meas_index].astype('float64')
+        try:
+            group_array = x[:, group_index].astype('int64')
+        except ValueError:
+            try:
+                group_array = x[:, group_index].astype('float64')
+            except ValueError:
+                group_array = x[:, group_index].astype('U6')
+
+        grouped_array = np.split(meas_array, np.unique(group_array, axis=0, return_index=True)[1][1:])
         out = [self._run_detrend(x) for x in grouped_array]
         out_list = [item for sublist in out for item in sublist]
         return np.array(out_list)
@@ -208,3 +218,10 @@ class binData(detrender):
         x[col_resc] = detrended_data
         x[col_bin] = binarized_data
         return x
+
+
+if __name__ == '__main__':
+    df = pd.read_csv("/mnt/c/Users/benig/Downloads/objNuclei_1line_clean_tracks.csv")
+    df["col_meas"] = df["objCytoRing_Intensity_MeanIntensity_imKTR"] / df["objNuclei_Intensity_MeanIntensity_imKTR"]
+    ts = binData()
+    ts.run(df, 'track_id_uni', 'col_meas', 'Image_Metadata_T')
