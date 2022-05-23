@@ -261,7 +261,7 @@ class NoodlePlot:
             posx (str): Name of the X coordinate column in df.
             posy (str): Name of the Y coordinate column in df.
             posz (str | None): Name of the Z coordinate column in df,
-                or "None" (str) if no z column.
+                or None if no z column.
         """
         self.df = df
         self.colev = colev
@@ -302,7 +302,7 @@ class NoodlePlot:
             and colors for each collective event.
         """
         # values need to be sorted to group with numpy
-        df.sort_values([colev, trackid], inplace=True)
+        df = df.sort_values([colev, trackid])
         if posz:
             array = df[[colev, trackid, frame, posx, posy, posz]].to_numpy()
         else:
