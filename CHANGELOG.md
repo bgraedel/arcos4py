@@ -1,5 +1,5 @@
 # Changelog
-## [0.1.3] - Upcoming release
+## [0.1.3] - 2022-05-23
 ### Fixed
 - Bug where if object id was a string, splitting arrays into groups would fail.
 - Hardcoded collective id name in stats module
