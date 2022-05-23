@@ -26,7 +26,7 @@ class calcCollevStats:
             data (np.ndarray): Containing a single collective event.
 
         Returns:
-            np.ndarray: Array containing collid, duration, tot_size, min_size,
+            np.ndarray: Array containing the collective event id, duration, tot_size, min_size,
                 max_size, "nd_frame, first_frame_centroid and last_frame_centroid
                 of the current collective event.
         """

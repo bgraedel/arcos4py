@@ -8,12 +8,13 @@ Example:
     >>> ts = ARCOS(data,["x"], 'time', 'id', 'meas', 'clTrackID')
     >>> ts.interpolate_measurements()
     >>> ts.clip_meas(clip_low = 0.001, clip_high=0.999)
-    >>> ts.bin_measurements(smoothK int = 3,
+    >>> ts.bin_measurements(
+            smoothK = 3,
             biasK = 51,
             peakThr = 0.2,
             binThr = 0.1,
             polyDeg = 1,
-            biasMet = "runmed",)
+            biasMet = "runmed")
     >>> events_df = ts.trackCollev(eps = 1, minClsz = 1, nPrev = 1)
 """
 
@@ -63,7 +64,7 @@ class ARCOS:
             posCols (list): List ontaining position column names strings inside data e.g.
                 At least one dimension is required.
             frame_column (str): Indicating the frame column in input_data.
-            id_column (str): Indicating the track id/id column in input_data.
+            id_column (str): Indicating the track id/object id column in input_data.
             measurement_column (str): Indicating the measurement column in input_data.
             clid_column (str): Indicating the column name containing the collective event ids.
         """
