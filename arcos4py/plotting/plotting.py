@@ -12,7 +12,7 @@ Examples:
     >>> from arcos4py.plotting import plotOriginalDetrended
     >>> plot = arcosPlots(data, 'time', 'meas', 'detrended', 'id')
     >>> plot.plot_detrended()
-    
+
     >>> # Stats Plot
     >>> from arcos4py.plotting import statsPlots
     >>> coll_dur_size_scatter = statsPlots(stats).plot_events_duration('total_size','duration')
@@ -55,6 +55,7 @@ TAB20 = [
     "#17becf",
     "#9edae5",
 ]
+
 
 class dataPlots:
     """Plot different metrics of input data.
