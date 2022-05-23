@@ -7,6 +7,7 @@
 
 ### Added
 - More examples for plots in plotting module
+- mkdocstrings-python-legacy extension
 
 ## [0.1.2] - 2022-05-03
 ### Added
