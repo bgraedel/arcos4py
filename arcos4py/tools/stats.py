@@ -86,7 +86,7 @@ class calcCollevStats:
                 of all collective events.
         """
         cols = [
-            'collid',
+            collev_id,
             "duration",
             "total_size",
             "min_size",
@@ -112,7 +112,7 @@ class calcCollevStats:
         data_np = data_np[~np.isnan(data_np).any(axis=1)]
         data_np_sorted = data_np[data_np[:, 2].argsort()]
         grouped_array = np.split(data_np_sorted, np.unique(data_np_sorted[:, 2], axis=0, return_index=True)[1][1:])
-        # map dbscan to grouped_array
+        # map to grouped_array
         out = map(self._calculate_duration_size_group, grouped_array)
         out_list = [i for i in out]
         df = pd.DataFrame(out_list, columns=cols)
@@ -146,16 +146,3 @@ class calcCollevStats:
             return data
         colev_stats = self._get_collev_duration(data, frame_column, collid_column, obj_id_column, posCol)
         return colev_stats
-
-
-if __name__ == '__main__':
-    df = pd.read_csv("/mnt/c/Users/benig/Desktop/arcos_data.csv")
-    print(df.columns)
-    out = calcCollevStats().calculate(
-        df,
-        'Image_Metadata_T',
-        'collid',
-        'track_id_uni',
-        ['objNuclei_filtered_Location_Center_X', 'objNuclei_filtered_Location_Center_Y'],
-    )
-    print(out)
