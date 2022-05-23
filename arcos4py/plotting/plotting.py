@@ -56,7 +56,6 @@ TAB20 = [
     "#9edae5",
 ]
 
-
 class dataPlots:
     """Plot different metrics of input data.
 
