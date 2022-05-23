@@ -3,6 +3,10 @@
 ### Fixed
 - Bug where if object id was a string, splitting arrays into groups would fail.
 - Hardcoded collective id name in stats module
+- Wrong example in main module
+
+### Added
+- More examples for plots in plotting module
 
 ## [0.1.2] - 2022-05-03
 ### Added

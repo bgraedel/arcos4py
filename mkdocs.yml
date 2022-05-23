@@ -67,7 +67,7 @@ extra:
       link: "mailto:benjamin.graedel@unibe.ch"
   analytics:
     provider: google
-    property: G-308769698
+    property: ${{ secrets.ANALYTICS_SECRET }}
     feedback:
       title: Was this page helpful?
       ratings:
