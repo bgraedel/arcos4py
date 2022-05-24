@@ -3,6 +3,7 @@
 ### Fixed
 - Fix for lm detrending
 - Fix for none detrending
+- Fix grouping failuer when object id was a string in rescale data method in binarization class
 
 ## [0.1.3] - 2022-05-23
 ### Fixed
