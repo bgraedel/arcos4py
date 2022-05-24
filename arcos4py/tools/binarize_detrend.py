@@ -88,7 +88,7 @@ class detrender:
                     local_smoothed = np.divide(local_smoothed, local_smoothed.max())
                 local_smoothed = np.nan_to_num(local_smoothed)
         else:
-            local_smoothed = None
+            local_smoothed = np.array([])
 
         return local_smoothed
 
@@ -177,8 +177,9 @@ class binData(detrender):
                 group_array = x[:, group_index].astype('float64')
             except ValueError:
                 group_array = x[:, group_index].astype('U6')
+                
         grouped_array = np.split(meas_array, np.unique(group_array, axis=0, return_index=True)[1][1:])
-        out = [minmax_scale(i, feature_range=feat_range) for i in grouped_array if i.shape[0] > 0]
+        out = [minmax_scale(i, feature_range=feat_range) if i.shape[0] > 0 else np.array([]) for i in grouped_array]
         rescaled = [item for sublist in out for item in sublist]
         # rescaled = minmax_scale(x[:,1], feature_range=feat_range)
         x[:, meas_index] = rescaled
@@ -211,8 +212,13 @@ class binData(detrender):
         """
         col_resc = f"{colMeas}.resc"
         col_bin = f"{colMeas}.bin"
-        cols = [colGroup, colMeas]
+        col_fact = f'{colGroup}_factorized'
+        cols = [col_fact, colMeas]
         x.sort_values([colGroup, colFrame], inplace=True)
+        # factorize column in order to prevent numpy grouping error in detrending
+        value, label = x[colGroup].factorize()
+        x[col_fact] = value
+        # convert to numpy
         data_np = x[cols].to_numpy()
 
         if self.biasMet == "none":
@@ -222,7 +228,8 @@ class binData(detrender):
         else:
             detrended_data = self.detrend(data_np, group_index=0, meas_index=1)
             binarized_data = self._bin_data(detrended_data)
-
+        
+        x = x.drop([col_fact], axis=1)
         x[col_resc] = detrended_data
         x[col_bin] = binarized_data
         return x

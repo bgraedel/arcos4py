@@ -176,10 +176,13 @@ class detectCollev:
         Returns:
             list[np.ndarray]: list with added collective id column detected by DBSCAN.
         """
-        db_array = DBSCAN(eps=self.eps, min_samples=self.minClSz, algorithm="kd_tree").fit(x[:, 1:])
-        cluster_labels = db_array.labels_
-        cluster_list = [id + 1 if id > -1 else np.nan for id in cluster_labels]
-        return cluster_list
+        if x.size:
+            db_array = DBSCAN(eps=self.eps, min_samples=self.minClSz, algorithm="kd_tree").fit(x[:, 1:])
+            cluster_labels = db_array.labels_
+            cluster_list = [id + 1 if id > -1 else np.nan for id in cluster_labels]
+            return cluster_list
+
+        return np.array([])
 
     def _run_dbscan(self, data: pd.DataFrame, frame: str, clid_frame: str, id_column: Union[str, None]) -> pd.DataFrame:
         """Apply dbscan method to every group i.e. frame.
