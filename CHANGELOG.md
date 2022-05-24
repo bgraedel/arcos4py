@@ -1,4 +1,9 @@
 # Changelog
+## [0.1.3] - Upcoming Release
+### Fixed
+- Fix for lm detrending
+- Fix for none detrending
+
 ## [0.1.3] - 2022-05-23
 ### Fixed
 - Bug where if object id was a string, splitting arrays into groups would fail.

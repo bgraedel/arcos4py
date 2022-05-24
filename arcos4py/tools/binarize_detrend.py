@@ -62,9 +62,9 @@ class detrender:
         return local_smoothing
 
     def _detrend_lm(self, x, polynomial_degree):
-        x = np.linspace(1, x.size, x.size).astype(int).reshape((-1, 1))
+        y = np.linspace(1, x.size, x.size).astype(int).reshape((-1, 1))
         transformer = PolynomialFeatures(degree=polynomial_degree, include_bias=False)
-        data_ = transformer.fit_transform(x)
+        data_ = transformer.fit_transform(y)
         model = LinearRegression().fit(X=data_, y=x)
         predicted_value = model.predict(data_)
         return predicted_value
@@ -169,8 +169,8 @@ class binData(detrender):
         self.binThr = binThr
 
     def _rescale_data(self, x: np.ndarray, group_index: int, meas_index: int, feat_range: tuple = (0, 1)) -> np.ndarray:
-        grouped_array = np.split(x[meas_index, :], np.unique(x[group_index, :], axis=0, return_index=True)[1][1:])
-        out = [minmax_scale(i, feature_range=feat_range) for i in grouped_array]
+        grouped_array = np.split(x[:, meas_index], np.unique(x[:, group_index], axis=0, return_index=True)[1][1:])
+        out = [minmax_scale(i, feature_range=feat_range) for i in grouped_array if i.shape[0] > 0]
         rescaled = [item for sublist in out for item in sublist]
         # rescaled = minmax_scale(x[:,1], feature_range=feat_range)
         x[:, meas_index] = rescaled

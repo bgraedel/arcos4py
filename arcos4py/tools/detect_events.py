@@ -318,8 +318,8 @@ class detectCollev:
         5. Tracks collective events i.e. links cluster ids across frames.
         6. Creates final DataFrame.
 
-        Returns (Dataframe):
-            Dataframe with tracked collective events is returned.
+        Returns:
+            DataFrame: Dataframe with tracked collective events is returned.
         """
         filtered_cols = self._select_necessary_columns(
             self.input_data,
