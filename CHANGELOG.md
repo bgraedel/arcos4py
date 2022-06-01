@@ -5,6 +5,9 @@
 - Fix for none detrending
 - Fix grouping failuer when object id was a string in rescale data method in binarization class
 
+### Changed
+- Binarization Thresholding value now sets everything to be active for >=, as opposed to > like it was before
+
 ## [0.1.3] - 2022-05-23
 ### Fixed
 - Bug where if object id was a string, splitting arrays into groups would fail.

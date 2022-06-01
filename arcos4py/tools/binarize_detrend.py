@@ -177,7 +177,7 @@ class binData(detrender):
                 group_array = x[:, group_index].astype('float64')
             except ValueError:
                 group_array = x[:, group_index].astype('U6')
-                
+
         grouped_array = np.split(meas_array, np.unique(group_array, axis=0, return_index=True)[1][1:])
         out = [minmax_scale(i, feature_range=feat_range) if i.shape[0] > 0 else np.array([]) for i in grouped_array]
         rescaled = [item for sublist in out for item in sublist]
@@ -186,7 +186,7 @@ class binData(detrender):
         return x
 
     def _bin_data(self, x: np.ndarray) -> np.ndarray:
-        bin = (x > self.binThr).astype(np.int_)
+        bin = (x >= self.binThr).astype(np.int_)
         return bin
 
     def run(self, x: pd.DataFrame, colGroup: str, colMeas: str, colFrame: str) -> pd.DataFrame:
@@ -228,7 +228,7 @@ class binData(detrender):
         else:
             detrended_data = self.detrend(data_np, group_index=0, meas_index=1)
             binarized_data = self._bin_data(detrended_data)
-        
+
         x = x.drop([col_fact], axis=1)
         x[col_resc] = detrended_data
         x[col_bin] = binarized_data
