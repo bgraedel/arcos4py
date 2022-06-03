@@ -1,5 +1,5 @@
 # Changelog
-## [0.1.3] - Upcoming Release
+## [0.1.4] - Upcoming Release
 ### Fixed
 - Fix for lm detrending
 - Fix for none detrending
