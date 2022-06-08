@@ -48,6 +48,10 @@ Napari Plugin
 -------------
 Arcos4py is also available as a Napari Plugin [arcos-gui](https://github.com/bgraedel/arcos-gui). 
 [arcos-gui](https://github.com/bgraedel/arcos-gui) can simplify parameter finding and visualization.
+
+
+[![arcos_demo](https://img.youtube.com/vi/hG_z_BFcAiQ/0.jpg)](https://www.youtube.com/watch?v=hG_z_BFcAiQ)
+
 ## Credits
 
 [Maciej Dobrzynski](https://github.com/dmattek) created the original ARCOS algorithm.
