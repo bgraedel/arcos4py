@@ -3,7 +3,7 @@
 ### Fixed
 - Fix for lm detrending
 - Fix for none detrending
-- Fix grouping failuer when object id was a string in rescale data method in binarization class
+- Fix grouping failure when object id was a string in rescale data method in binarization class
 
 ### Changed
 - Binarization Thresholding value now sets everything to be active for >=, as opposed to > like it was before
