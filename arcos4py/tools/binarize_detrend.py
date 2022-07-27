@@ -61,6 +61,7 @@ class detrender:
         local_smoothing = median_filter(input=x, size=filter_size, mode=endrule_mode)
         return local_smoothing
 
+    # solution a bit janky but only median filter with changing window size?
     def _detrend_global_runmed(self, x, filter_size):
         x_series = pd.Series(x)
         global_smoothing = x_series.rolling(filter_size, min_periods=1).median().to_numpy()
@@ -237,10 +238,3 @@ class binData(detrender):
         x[col_resc] = detrended_data
         x[col_bin] = binarized_data
         return x
-
-
-if __name__ == '__main__':
-    df = pd.read_csv("/mnt/c/Users/benig/Downloads/objNuclei_1line_clean_tracks.csv")
-    df["col_meas"] = df["objCytoRing_Intensity_MeanIntensity_imKTR"] / df["objNuclei_Intensity_MeanIntensity_imKTR"]
-    ts = binData()
-    ts.run(df, 'track_id_uni', 'col_meas', 'Image_Metadata_T')
