@@ -61,6 +61,11 @@ class detrender:
         local_smoothing = median_filter(input=x, size=filter_size, mode=endrule_mode)
         return local_smoothing
 
+    def _detrend_global_runmed(self, x, filter_size):
+        x_series = pd.Series(x)
+        global_smoothing = x_series.rolling(filter_size, min_periods=1).median().to_numpy()
+        return global_smoothing
+
     def _detrend_lm(self, x, polynomial_degree):
         y = np.linspace(1, x.size, x.size).astype(int).reshape((-1, 1))
         transformer = PolynomialFeatures(degree=polynomial_degree, include_bias=False)
@@ -74,10 +79,9 @@ class detrender:
             local_smoothed = self._detrend_runnmed(x, self.smoothK, "constant")
             if self.biasMet != "none":
                 if self.biasMet == "runmed":
-                    global_smoothed = self._detrend_runnmed(
+                    global_smoothed = self._detrend_global_runmed(
                         x=local_smoothed,
                         filter_size=self.biasK,
-                        endrule_mode="constant",
                     )
                 elif self.biasMet == "lm":
                     global_smoothed = self._detrend_lm(local_smoothed, self.polyDeg)
