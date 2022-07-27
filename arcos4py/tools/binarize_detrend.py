@@ -77,7 +77,7 @@ class detrender:
 
     def _run_detrend(self, x: np.ndarray) -> np.ndarray:
         if x.size:
-            local_smoothed = self._detrend_runnmed(x, self.smoothK, "constant")
+            local_smoothed = self._detrend_runnmed(x, self.smoothK, "nearest")
             if self.biasMet != "none":
                 if self.biasMet == "runmed":
                     global_smoothed = self._detrend_global_runmed(
