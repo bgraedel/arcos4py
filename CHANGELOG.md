@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.1.5] - Upcoming release
+## [0.1.5] - 2022-08-23
 ### Changed
 - Changed running median for global smoothing of trajectories from scipy running_median
 to pandas running.median, since this allows a different endrule mode
