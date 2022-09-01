@@ -13,7 +13,7 @@ from .stats import calcCollevStats
 __all__ = [
     "binData",
     "clipMeas",
-    "interpolater",
+    "interpolation",
     "detectCollev",
     "filterCollev",
     "calcCollevStats",
