@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.6] - Upcoming Changes
+### Fixed
+- Spelling mistake in \__init__.py
+
 ## [0.1.5] - 2022-08-23
 ### Changed
 - Changed running median for global smoothing of trajectories from scipy running_median
