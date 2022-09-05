@@ -169,7 +169,9 @@ class ARCOS:
         ).run(self.data, colMeas=self.measurement_column, colGroup=self.id_column, colFrame=self.frame_column)
         return self.data
 
-    def trackCollev(self, eps: float = 1, minClsz: int = 1, nPrev: int = 1) -> pd.DataFrame:
+    def trackCollev(
+        self, eps: float = 1, epsPrev: Union[float, None] = None, minClsz: int = 1, nPrev: int = 1
+    ) -> pd.DataFrame:
         """Requires binarized measurement column.
 
         Makes use of the dbscan algorithm,
@@ -180,7 +182,8 @@ class ARCOS:
             eps (float): The maximum distance between two samples for one to be considered as in
                 the neighbourhood of the other.
                 This is not a maximum bound on the distances of points within a cluster.
-                Value is also used to connect collective events across multiple frames.
+            epsPrev (float | None): Frame to frame distance, value is used to connect
+                collective events across multiple frames.If "None", same value as eps is used.
             minClsz (str): The minimum size for a cluster to be identified as a collective event
             nPrev (int): Number of previous frames the tracking
                 algorithm looks back to connect collective events
@@ -191,6 +194,7 @@ class ARCOS:
         self.data = detectCollev(
             self.data,
             eps=eps,
+            epsPrev=epsPrev,
             minClSz=minClsz,
             nPrev=nPrev,
             posCols=self.posCols,
