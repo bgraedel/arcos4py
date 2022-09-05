@@ -81,7 +81,7 @@ class dataPlots:
         self.frame = frame
         self.measurement = measurement
 
-    def position_t_plot(self, posCol: set[str] = {'x'}, n: int = 20):
+    def position_t_plot(self, posCol: set[str] = {'x'}, n: int = 20) -> Union[plt.Axes, plt.Figure]:
         """Plots X and Y over T to visualize tracklength.
 
         Arguments:
@@ -113,7 +113,6 @@ class dataPlots:
         Uses Seaborn distplot to plot measurement density.
 
         Arguments:
-            measurement_col (str): name of measurement column.
             *args (Any): arguments passed on to seaborn histplot function.
             **kwargs (Any): keyword arguments passed on to seaborn histplot function.
 
@@ -227,7 +226,7 @@ class statsPlots:
         """
         self.data = data
 
-    def plot_events_duration(self, total_size: str, duration: str, point_size: int = 40, *args, **kwargs):
+    def plot_events_duration(self, total_size: str, duration: str, point_size: int = 40, *args, **kwargs) -> plt.Axes:
         """Scatterplot of collective event duration.
 
         Arguments:

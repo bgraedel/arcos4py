@@ -61,7 +61,7 @@ class filterCollev:
             min_size (int): minimal size for a collective event to be returned.
 
         Returns:
-            DataFrame: Dataframe containing filtered collective events.
+            DataFrame (DataFrame): Dataframe containing filtered collective events.
 
         """
         collev_stats = collev_stats[

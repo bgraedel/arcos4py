@@ -183,7 +183,6 @@ class detectCollev:
 
         Arguments:
             x (np.ndarray): With unique frame and position columns.
-            collid_col (str): Column to be created containing cluster-id labels.
 
         Returns:
             list[np.ndarray]: list with added collective id column detected by DBSCAN.

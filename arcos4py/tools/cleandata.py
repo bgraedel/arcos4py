@@ -55,7 +55,7 @@ class clipMeas:
         """
         self.data = data
 
-    def _calculate_percentile(self, data: np.ndarray, clip_low: float, clip_high: float):
+    def _calculate_percentile(self, data: np.ndarray, clip_low: float, clip_high: float) -> np.ndarray:
         """Calculate upper and lower quantille.
 
         Arguments:
@@ -79,7 +79,7 @@ class clipMeas:
             clip_high (float): Upper clipping boundry (quantille).
 
         Returns:
-            np.ndarray: A clipped array of the input data.
+            np.ndarray (np.ndarray): A clipped array of the input data.
         """
         low, high = self._calculate_percentile(self.data, clip_low, clip_high)
         out = self.data.clip(low, high)
