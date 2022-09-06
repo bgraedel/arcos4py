@@ -89,7 +89,8 @@ class dataPlots:
             n (int): number of samples to plot.
 
         Returns:
-            fig, axes: Matplotlib fig and axes of density plot.
+            fig (matplotlib.figure.Figure): Matplotlib figure object of density plot.
+            axes (matplotlib.axes.Axes): Matplotlib axes of density plot.
         """
         sample = pd.Series(self.data[self.id].unique()).sample(n)
         pd_from_r_df = self.data.loc[self.data[self.id].isin(sample)]
@@ -117,7 +118,7 @@ class dataPlots:
             **kwargs (Any): keyword arguments passed on to seaborn histplot function.
 
         Returns:
-            FacetGrid: Seaborn FacetGrid of density density plot.
+            FacetGrid (seaborn.FacetGrid): Seaborn FacetGrid of density density plot.
         """
         plot = sns.displot(
             self.data[self.measurement], kind="kde", palette="pastel", label=self.measurement, *args, **kwargs
@@ -129,7 +130,7 @@ class dataPlots:
         plt.ylabel('Density')
         return plot
 
-    def histogram(self, bins: str = 'auto', *args, **kwargs):
+    def histogram(self, bins: str = 'auto', *args, **kwargs) -> plt.Axes.subplot:
         """Histogram of tracklenght.
 
         Uses seaborn histplot function to plot tracklenght histogram.
@@ -181,7 +182,7 @@ class plotOriginalDetrended:
 
     def plot_detrended(
         self, n_samples: int = 25, subplots: tuple = (5, 5), plotsize: tuple = (20, 10)
-    ) -> matplotlib.axes.Axes:
+    ):
         """Method to plot detrended vs original data.
 
         Arguments:
@@ -190,7 +191,8 @@ class plotOriginalDetrended:
             plotsize (tuple): Size of generated plot.
 
         Returns:
-            Fig, Axes: Matplotlib figure and axes2d of detrended vs original data.
+            Fig (matplotlib.axes.Axes): Matplotlib axes2d of detrended vs original data.
+            Axes (matplotlib.axes.Axes): Matplotlib figure of detrended vs original data.
         """
         vals = np.random.choice(self.data[self.id].unique(), n_samples, replace=False)
         self.data = self.data.set_index(self.id).loc[vals].reset_index()
@@ -226,7 +228,7 @@ class statsPlots:
         """
         self.data = data
 
-    def plot_events_duration(self, total_size: str, duration: str, point_size: int = 40, *args, **kwargs) -> plt.Axes:
+    def plot_events_duration(self, total_size: str, duration: str, point_size: int = 40, *args, **kwargs) -> matplotlib.axes.Axes:
         """Scatterplot of collective event duration.
 
         Arguments:
@@ -237,7 +239,7 @@ class statsPlots:
             **kwargs (Any): Keyword arguments passed on to seaborn scatterplot function.
 
         Returns:
-            Axes: Matplotlib Axes object of scatterplot
+            Axes (matplotlib.axes.Axes): Matplotlib Axes object of scatterplot
         """
         plot = sns.scatterplot(x=self.data[total_size], y=self.data[duration], s=point_size, *args, **kwargs)
         return plot
@@ -297,7 +299,7 @@ class NoodlePlot:
         posx: str,
         posy: str,
         posz: Union[str, None] = None,
-    ):
+    ) -> Union[list[np.ndarray], np.ndarray]:
         """From arcos collective event data,\
         generates a list of numpy arrays, one for each event.
 
@@ -314,8 +316,8 @@ class NoodlePlot:
                 or None if no z column.
 
         Returns:
-            list[np.ndarray], np.ndarray: List of collective events data,
-            and colors for each collective event.
+            grouped_array (list[np.ndarray]): List of collective events data
+            colors (np.ndarray): colors for each collective event.
         """
         # values need to be sorted to group with numpy
         df = df.sort_values([colev, trackid])
@@ -364,7 +366,8 @@ class NoodlePlot:
                 (i.e. ['red', 'yellow']) used to color collecitve events. Cycles through list.
 
         Returns:
-            fig, axes: Matplotlib figure and axes are returned for the noodle plot.
+            fig (matplotlib.figure.Figure): Matplotlib figure object for the noodle plot.
+            axes (matplotlib.axes.Axes): Matplotlib axes for the nooble plot.
         """
         if projection_axis not in [self.posx, self.posy, self.posz]:
             raise ValueError(f"projection_axis has to be one of {[self.posx, self.posy, self.posz]}")
