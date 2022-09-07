@@ -12,6 +12,9 @@ Example:
     >>> data_clipped = a.clip(0.001, 0.999)
 
 """
+
+from __future__ import annotations
+
 import numpy as np
 import pandas as pd
 
@@ -55,7 +58,9 @@ class clipMeas:
         """
         self.data = data
 
-    def _calculate_percentile(self, data: np.ndarray, clip_low: float, clip_high: float) -> np.ndarray:
+    def _calculate_percentile(
+        self, data: np.ndarray, clip_low: float, clip_high: float
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Calculate upper and lower quantille.
 
         Arguments:

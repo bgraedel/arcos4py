@@ -5,6 +5,7 @@ Example:
     >>> ts = detectCollev(data)
     >>> events_df = ts.run()
 """
+from __future__ import annotations
 
 from typing import Union
 

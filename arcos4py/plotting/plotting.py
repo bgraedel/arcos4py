@@ -180,9 +180,7 @@ class plotOriginalDetrended:
         self.id = id
         self.frame = frame
 
-    def plot_detrended(
-        self, n_samples: int = 25, subplots: tuple = (5, 5), plotsize: tuple = (20, 10)
-    ):
+    def plot_detrended(self, n_samples: int = 25, subplots: tuple = (5, 5), plotsize: tuple = (20, 10)):
         """Method to plot detrended vs original data.
 
         Arguments:
@@ -228,7 +226,9 @@ class statsPlots:
         """
         self.data = data
 
-    def plot_events_duration(self, total_size: str, duration: str, point_size: int = 40, *args, **kwargs) -> matplotlib.axes.Axes:
+    def plot_events_duration(
+        self, total_size: str, duration: str, point_size: int = 40, *args, **kwargs
+    ) -> matplotlib.axes.Axes:
         """Scatterplot of collective event duration.
 
         Arguments:
@@ -299,7 +299,7 @@ class NoodlePlot:
         posx: str,
         posy: str,
         posz: Union[str, None] = None,
-    ) -> Union[list[np.ndarray], np.ndarray]:
+    ) -> tuple[list[np.ndarray], np.ndarray]:
         """From arcos collective event data,\
         generates a list of numpy arrays, one for each event.
 
@@ -342,7 +342,7 @@ class NoodlePlot:
         colors = np.take(np.array(color_cylce), [i + 1 for i in np.unique(seq_colids)], mode="wrap")
         return grouped_array, colors
 
-    def _create_noodle_plot(self, grouped_data: np.ndarray, colors: np.ndarray):
+    def _create_noodle_plot(self, grouped_data: list[np.ndarray], colors: np.ndarray):
         """Plots the noodle plot."""
         fig, ax = plt.subplots()
         ax.set_xlabel("Time Point")
