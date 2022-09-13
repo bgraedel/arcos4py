@@ -31,7 +31,7 @@ def test_empty_data(no_bin_data: pd.DataFrame):
         ts = ARCOS(
             test_data, posCols=pos, frame_column='time', id_column='id', measurement_column='m', clid_column='clTrackID'
         )
-        ts.trackCollev(eps=1, minClsz=1, nPrev=2)
+        ts.trackCollev(eps=1, epsPrev=None, minClsz=1, nPrev=2)
 
 
 def test_1_central_1_prev():
@@ -55,7 +55,7 @@ def test_1_central_2_prev():
         df_in, posCols=pos, frame_column='time', id_column='trackID', measurement_column='m', clid_column='clTrackID'
     )
     ts.bin_col = 'm'
-    out = ts.trackCollev(eps=1, minClsz=1, nPrev=2)
+    out = ts.trackCollev(eps=1, epsPrev=1, minClsz=1, nPrev=2)
     out = out.drop(columns=['m', 'x'])
     assert_frame_equal(out, df_true, check_dtype=False)
 
@@ -68,7 +68,7 @@ def test_1_central_3D():
         df_in, posCols=pos, frame_column='time', id_column='trackID', measurement_column='m', clid_column='clTrackID'
     )
     ts.bin_col = 'm'
-    out = ts.trackCollev(eps=1, minClsz=1, nPrev=1)
+    out = ts.trackCollev(eps=1, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=['m', 'x', 'y', 'z'])
     assert_frame_equal(out, df_true)
 
@@ -81,7 +81,7 @@ def test_1_central_growing():
         df_in, posCols=pos, frame_column='time', id_column='trackID', measurement_column='m', clid_column='clTrackID'
     )
     ts.bin_col = 'm'
-    out = ts.trackCollev(eps=1, minClsz=1, nPrev=1)
+    out = ts.trackCollev(eps=1, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=['m', 'x'])
     assert_frame_equal(out, df_true)
 
@@ -94,7 +94,7 @@ def test_2_central_growing():
         df_in, posCols=pos, frame_column='time', id_column='trackID', measurement_column='m', clid_column='clTrackID'
     )
     ts.bin_col = 'm'
-    out = ts.trackCollev(eps=1, minClsz=1, nPrev=1)
+    out = ts.trackCollev(eps=1, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=['m', 'x'])
     assert_frame_equal(out, df_true)
 
@@ -107,7 +107,7 @@ def test_2_with_1_common_symmetric():
         df_in, posCols=pos, frame_column='time', id_column='trackID', measurement_column='m', clid_column='clTrackID'
     )
     ts.bin_col = 'm'
-    out = ts.trackCollev(eps=1.0, minClsz=1, nPrev=1)
+    out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=['m', 'x'])
     assert_frame_equal(out, df_true)
 
@@ -120,7 +120,7 @@ def test_2_with_1_common_asymmetric():
         df_in, posCols=pos, frame_column='time', id_column='trackID', measurement_column='m', clid_column='clTrackID'
     )
     ts.bin_col = 'm'
-    out = ts.trackCollev(eps=1.0, minClsz=1, nPrev=1)
+    out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=['m', 'x'])
     assert_frame_equal(out, df_true)
 
@@ -133,7 +133,7 @@ def test_3_spreading_1_prev():
         df_in, posCols=pos, frame_column='time', id_column='trackID', measurement_column='m', clid_column='clTrackID'
     )
     ts.bin_col = 'm'
-    out = ts.trackCollev(eps=1.0, minClsz=1, nPrev=1)
+    out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=['m', 'x'])
     assert_frame_equal(out, df_true)
 
@@ -146,7 +146,7 @@ def test_3_spreading_2_prev():
         df_in, posCols=pos, frame_column='time', id_column='trackID', measurement_column='m', clid_column='clTrackID'
     )
     ts.bin_col = 'm'
-    out = ts.trackCollev(eps=1.0, minClsz=1, nPrev=2)
+    out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=2)
     out = out.drop(columns=['m', 'x'])
     assert_frame_equal(out, df_true)
 
@@ -159,7 +159,7 @@ def test_5_overlapping_1_prev():
         df_in, posCols=pos, frame_column='time', id_column='trackID', measurement_column='m', clid_column='clTrackID'
     )
     ts.bin_col = 'm'
-    out = ts.trackCollev(eps=1.0, minClsz=1, nPrev=1)
+    out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=['m', 'x'])
     assert_frame_equal(out, df_true)
 
@@ -172,7 +172,7 @@ def test_5_overlapping_2_prev():
         df_in, posCols=pos, frame_column='time', id_column='trackID', measurement_column='m', clid_column='clTrackID'
     )
     ts.bin_col = 'm'
-    out = ts.trackCollev(eps=1.0, minClsz=1, nPrev=2)
+    out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=2)
     out = out.drop(columns=['m', 'x'])
     assert_frame_equal(out, df_true)
 
@@ -185,7 +185,7 @@ def test_6_overlapping():
         df_in, posCols=pos, frame_column='time', id_column='trackID', measurement_column='m', clid_column='clTrackID'
     )
     ts.bin_col = 'm'
-    out = ts.trackCollev(eps=1.0, minClsz=1, nPrev=1)
+    out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=['m', 'x'])
     out['trackID'] = out['trackID'].astype(int64)
     assert_frame_equal(out, df_true)
@@ -196,7 +196,7 @@ def test_split_from_single():
     df_true = pd.read_csv('tests/testdata/1objSplit_res.csv')
     pos = ['pos']
     ts = ARCOS(df_in, posCols=pos, frame_column='t', id_column='id', measurement_column=None, clid_column='collid')
-    out = ts.trackCollev(eps=1.0, minClsz=1, nPrev=1)
+    out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=['pos'])
     assert_frame_equal(out, df_true)
 
@@ -206,7 +206,7 @@ def test_split_from_2_objects():
     df_true = pd.read_csv('tests/testdata/2objSplit_res.csv')
     pos = ['pos']
     ts = ARCOS(df_in, posCols=pos, frame_column='t', id_column='id', measurement_column=None, clid_column='collid')
-    out = ts.trackCollev(eps=1.0, minClsz=1, nPrev=1)
+    out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=['pos'])
     assert_frame_equal(out, df_true)
 
@@ -216,7 +216,7 @@ def test_cross_2_objects():
     df_true = pd.read_csv('tests/testdata/2objCross_res.csv')
     pos = ['pos']
     ts = ARCOS(df_in, posCols=pos, frame_column='t', id_column='id', measurement_column=None, clid_column='collid')
-    out = ts.trackCollev(eps=1.0, minClsz=1, nPrev=1)
+    out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=['pos'])
     assert_frame_equal(out, df_true)
 
@@ -226,7 +226,7 @@ def test_merge_split_2_objects_with_common():
     df_true = pd.read_csv('tests/testdata/2objMergeSplitCommon_res.csv')
     pos = ['pos']
     ts = ARCOS(df_in, posCols=pos, frame_column='t', id_column='id', measurement_column=None, clid_column='collid')
-    out = ts.trackCollev(eps=1.0, minClsz=1, nPrev=1)
+    out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=['pos'])
     assert_frame_equal(out, df_true)
 
@@ -237,7 +237,7 @@ def test_merge_split_2_objects_crossing():
     df_true = pd.read_csv('tests/testdata/2objMergeSplitCross_res.csv')
     pos = ['pos']
     ts = ARCOS(df_in, posCols=pos, frame_column='t', id_column='id', measurement_column=None, clid_column='collid')
-    out = ts.trackCollev(eps=1.0, minClsz=1, nPrev=1)
+    out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=['pos'])
     assert_frame_equal(out, df_true)
 
@@ -248,7 +248,7 @@ def test_merge_and_split_2_objects_near():
     df_true = pd.read_csv('tests/testdata/2objMergeSplitNear_res.csv')
     pos = ['pos']
     ts = ARCOS(df_in, posCols=pos, frame_column='t', id_column='id', measurement_column=None, clid_column='collid')
-    out = ts.trackCollev(eps=1.0, minClsz=1, nPrev=1)
+    out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=['pos'])
     assert_frame_equal(out, df_true)
 
@@ -258,6 +258,6 @@ def test_4_objects_in_2_events():
     df_true = pd.read_csv('tests/testdata/4obj2events_res.csv')
     pos = ['x']
     ts = ARCOS(df_in, posCols=pos, frame_column='frame', id_column='id', measurement_column=None, clid_column='collId')
-    out = ts.trackCollev(eps=1.0, minClsz=1, nPrev=1)
+    out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=['x'])
     assert_frame_equal(out, df_true)

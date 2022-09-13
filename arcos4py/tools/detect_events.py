@@ -5,6 +5,7 @@ Example:
     >>> ts = detectCollev(data)
     >>> events_df = ts.run()
 """
+from __future__ import annotations
 
 from typing import Union
 
@@ -13,7 +14,7 @@ import pandas as pd
 from scipy.spatial import KDTree
 from sklearn.cluster import DBSCAN
 
-from ._errors import columnError, epsError, minClSzError, noDataError, nPrevError
+from ._errors import columnError, epsError, epsPrevError, minClSzError, noDataError, nPrevError
 
 
 class detectCollev:
@@ -29,14 +30,15 @@ class detectCollev:
         eps (float): The maximum distance between two samples for one to be considered as in
             the neighbourhood of the other.
             This is not a maximum bound on the distances of points within a cluster.
-            Value is also used to connect collective events across multiple frames.
+        epsPrev (float | None): Frame to frame distance, value is used to connect
+            collective events across multiple frames.If "None", same value as eps is used.
         minClSz (int): Minimum size for a cluster to be identified as a collective event.
         nPrev (int): Number of previous frames the tracking
             algorithm looks back to connect collective events.
         posCols (list): List of position columns contained in the data.
             Must at least contain one
         frame_column (str): Indicating the frame column in input_data.
-        id_column (str): Indicating the track id/id column in input_data.
+        id_column (str | None): Indicating the track id/id column in input_data.
         bin_meas_column (str): Indicating the bin_meas_column in input_data or None.
         clid_column (str): Indicating the column name containing the ids of collective events.
     """
@@ -45,6 +47,7 @@ class detectCollev:
         self,
         input_data: pd.DataFrame,
         eps: float = 1,
+        epsPrev: Union[float, None] = None,
         minClSz: int = 1,
         nPrev: int = 1,
         posCols: list = ["x"],
@@ -60,12 +63,13 @@ class detectCollev:
             eps (float): The maximum distance between two samples for one to be considered as in
                 the neighbourhood of the other.
                 This is not a maximum bound on the distances of points within a cluster.
-                Value is also used to connect collective events across multiple frames.
+            epsPrev (float | None): Frame to frame distance, value is used to connect
+                collective events across multiple frames.If "None", same value as eps is used.
             minClSz (int): Minimum size for a cluster to be identified as a collective event.
             nPrev (int): Number of previous frames the tracking
                 algorithm looks back to connect collective events.
             posCols (list): List of position columns contained in the data.
-                Must at least contain one
+                Must at least contain one.
             frame_column (str): Indicating the frame column in input_data.
             id_column (str | None): Indicating the track id/id column in input_data, optional.
             bin_meas_column (str): Indicating the bin_meas_column in input_data or None.
@@ -74,6 +78,10 @@ class detectCollev:
         # assign some variables passed in as arguments to the object
         self.input_data = input_data
         self.eps = eps
+        if epsPrev:
+            self.epsPrev = epsPrev
+        else:
+            self.epsPrev = eps
         self.minClSz = minClSz
         self.nPrev = nPrev
         self.frame_column = frame_column
@@ -110,17 +118,22 @@ class detectCollev:
     def _check_eps(self):
         """Checks if eps is greater than 0."""
         if self.eps <= 0:
-            raise epsError("eps has to be greater than 0")
+            raise epsError("Parameter eps has to be greater than 0")
+
+    def _check_epsPrev(self):
+        """Checks if frame to frame distance is greater than 0."""
+        if self.epsPrev and self.epsPrev <= 0:
+            raise epsPrevError("Parameter epsPrev has to be greater than 0 or None")
 
     def _check_minClSz(self):
         """Checks if minClSiz is greater than 0."""
         if self.minClSz <= 0:
-            raise minClSzError("Parameter minClSiz has to be greater than 0!")
+            raise minClSzError("Parameter minClSiz has to be an integer greater than 0!")
 
     def _check_nPrev(self):
         """Checks if nPrev is greater than 0."""
         if self.nPrev <= 0 and isinstance(self.nPrev, int):
-            raise nPrevError("Parameter nPrev has to be an integer greater than 0 and an integer!")
+            raise nPrevError("Parameter nPrev has to be an integer greater than 0!")
 
     def _run_input_checks(self):
         """Run input checks."""
@@ -171,7 +184,6 @@ class detectCollev:
 
         Arguments:
             x (np.ndarray): With unique frame and position columns.
-            collid_col (str): Column to be created containing cluster-id labels.
 
         Returns:
             list[np.ndarray]: list with added collective id column detected by DBSCAN.
@@ -283,7 +295,7 @@ class detectCollev:
                     # calculate nearest neighbour between previoius and current frame
                     nn_dist, nn_indices = self._nearest_neighbour(pos_previous, pos_current)
                     prev_cluster_nbr_all = prev_frame[nn_indices, 1]
-                    prev_cluster_nbr_eps = prev_cluster_nbr_all[(nn_dist <= self.eps)]
+                    prev_cluster_nbr_eps = prev_cluster_nbr_all[(nn_dist <= self.epsPrev)]
                     # only continue if neighbours
                     # were detected within eps distance
                     if prev_cluster_nbr_eps.size:

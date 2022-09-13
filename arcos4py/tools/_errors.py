@@ -8,7 +8,7 @@ class columnError(ValueError):
 
 
 class epsError(ValueError):
-    """Raised if eps is smaller than 1."""
+    """Raised if eps is smaller or equal to 0."""
 
 
 class minClSzError(ValueError):
@@ -17,3 +17,7 @@ class minClSzError(ValueError):
 
 class nPrevError(ValueError):
     """Raised if nPrev is smaller than 1."""
+
+
+class epsPrevError(ValueError):
+    """Raised if epsPrev is smaller or equal to 0."""

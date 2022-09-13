@@ -4,6 +4,11 @@
 ### Fixed
 - Spelling mistake in \__init__.py
 
+### Changed
+- added the parameter epsPrev by separating it from eps. 
+epsPrev is the maximum distance cells within collective events can be separated from each other when linking them from one frame to the next.
+If set to 'None', as default, the same value as for eps is used.
+
 ## [0.1.5] - 2022-08-23
 ### Changed
 - Changed running median for global smoothing of trajectories from scipy running_median
