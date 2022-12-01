@@ -5,6 +5,9 @@
 - Spelling mistake in \__init__.py
 
 ### Changed
+- None detrending now rescales measurements to 0,1 range on a global scale and not on a track-by-track basis.
+
+### Changed
 - added the parameter epsPrev by separating it from eps. 
 epsPrev is the maximum distance cells within collective events can be separated from each other when linking them from one frame to the next.
 If set to 'None', as default, the same value as for eps is used.
