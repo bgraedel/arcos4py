@@ -174,19 +174,9 @@ class binData(detrender):
         self.binThr = binThr
 
     def _rescale_data(self, x: np.ndarray, group_index: int, meas_index: int, feat_range: tuple = (0, 1)) -> np.ndarray:
+        """Rescale data to a given range."""
         meas_array = x[:, meas_index].astype('float64')
-        try:
-            group_array = x[:, group_index].astype('int64')
-        except ValueError:
-            try:
-                group_array = x[:, group_index].astype('float64')
-            except ValueError:
-                group_array = x[:, group_index].astype('U6')
-
-        grouped_array = np.split(meas_array, np.unique(group_array, axis=0, return_index=True)[1][1:])
-        out = [minmax_scale(i, feature_range=feat_range) if i.shape[0] > 0 else np.array([]) for i in grouped_array]
-        rescaled = [item for sublist in out for item in sublist]
-        # rescaled = minmax_scale(x[:,1], feature_range=feat_range)
+        rescaled = minmax_scale(meas_array, feature_range=feat_range)
         x[:, meas_index] = rescaled
         return x
 
