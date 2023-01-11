@@ -6,7 +6,7 @@ __version__ = '0.1.5'
 
 from .binarize_detrend import binData
 from .cleandata import clipMeas, interpolation
-from .detect_events import detectCollev
+from .detect_events import detectCollev, estimate_eps
 from .filter_events import filterCollev
 from .stats import calcCollevStats
 

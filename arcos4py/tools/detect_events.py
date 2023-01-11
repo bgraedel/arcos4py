@@ -11,6 +11,8 @@ from typing import Union
 
 import numpy as np
 import pandas as pd
+from kneed import KneeLocator
+from matplotlib import pyplot as plt
 from scipy.spatial import KDTree
 from sklearn.cluster import DBSCAN
 
@@ -366,3 +368,147 @@ class detectCollev:
         tracked_events = tracked_events.merge(df_to_merge, how="left")
         tracked_events = tracked_events
         return tracked_events
+
+
+def _nearest_neighbour_eps(
+    X: np.ndarray,
+    nbr_nearest_neighbours: int = 1,
+):
+    kdB = KDTree(data=X)
+    nearest_neighbours, indices = kdB.query(X, k=nbr_nearest_neighbours)
+    return nearest_neighbours[:, 1:]
+
+
+def estimate_eps(
+    data: pd.DataFrame,
+    method: str = 'kneepoint',
+    pos_cols: list[str] = ['x,y'],
+    frame_col: str = 't',
+    n_neighbors: int = 5,
+    plot: bool = True,
+    plt_size: tuple[int, int] = (5, 5),
+    **kwargs: dict,
+):
+    """Estimates eps parameter in DBSCAN.
+
+    Estimates the eps parameter for the DBSCAN clustering method, as used by ARCOS,
+    by calculating the nearest neighbour distances for each point in the data.
+    N_neighbours should be chosen to match the minimum point size in DBSCAN
+    or the minimum clustersize in detect_events respectively.
+    The method argument determines how the eps parameter is estimated.
+    'kneepoint' estimates the knee of the nearest neighbour distribution.
+    'mean' and 'median' return (by default) 1.5 times
+    the mean or median of the nearest neighbour distances respectively.
+
+    Arguments:
+        data (pd.DataFrame): DataFrame containing the data.
+        method (str, optional): Method to use for estimating eps. Defaults to 'kneepoint'.
+            Can be one of ['kneepoint', 'mean', 'median'].'kneepoint' estimates the knee of the nearest neighbour
+            distribution to to estimate eps. 'mean' and 'median' use the 1.5 times the mean or median of the
+            nearest neighbour distances respectively.
+        pos_cols (list[str]): List of column names containing the position data.
+        frame_col (str, optional): Name of the column containing the frame number. Defaults to 't'.
+        n_neighbors (int, optional): Number of nearest neighbours to consider. Defaults to 5.
+        plot (bool, optional): Whether to plot the results. Defaults to True.
+        plt_size (tuple[int, int], optional): Size of the plot. Defaults to (5, 5).
+        kwargs: Keyword arguments for the method. Modify behaviour of respecitve method.
+            For kneepoint: [S online, curve, direction, interp_method,polynomial_degree; For mean: [mean_multiplier]
+            For median [median_multiplier]
+
+    Returns:
+        Eps (float): eps parameter for DBSCAN.
+    """
+    subset = [frame_col] + pos_cols
+    for i in subset:
+        if i not in data.columns:
+            raise ValueError(f"Column {i} not in data")
+    method_option = ['kneepoint', 'mean', 'median']
+
+    if method not in method_option:
+        raise ValueError(f"Method must be one of {method_option}")
+
+    allowedtypes = {
+        'kneepoint': 'kneepoint_values',
+        'mean': 'mean_values',
+        'median': 'median_values',
+    }
+
+    kwdefaults = {
+        'S': 1,
+        'online': True,
+        'curve': 'convex',
+        'direction': 'increasing',
+        'interp_method': 'polynomial',
+        'mean_multiplier': 1.5,
+        'median_multiplier': 1.5,
+        'polynomial_degree': 7,
+    }
+
+    kwtypes = {
+        'S': int,
+        'online': bool,
+        'curve': str,
+        'direction': str,
+        'interp_method': str,
+        'polynomial_degree': int,
+        'mean_multiplier': (float, int),
+        'median_multiplier': (float, int),
+    }
+
+    allowedkwargs = {
+        'kneepoint_values': ['S', 'online', 'curve', 'interp_method', 'direction', 'polynomial_degree'],
+        'mean_values': ['mean_multiplier'],
+        'median_values': ['median_multiplier'],
+    }
+
+    for key in kwargs:
+        if key not in allowedkwargs[allowedtypes[method]]:
+            raise ValueError(f'{key} keyword not in allowed keywords {allowedkwargs[allowedtypes[method]]}')
+        if not isinstance(kwargs[key], kwtypes[key]):
+            raise ValueError(f'{key} must be of type {kwtypes[key]}')
+
+    # Set kwarg defaults
+    for kw in allowedkwargs[allowedtypes[method]]:
+        kwargs.setdefault(kw, kwdefaults[kw])
+
+    subset = [frame_col] + pos_cols
+    data_np = data[subset].to_numpy(dtype=np.float64)
+    # sort by frame
+    data_np = data_np[data_np[:, 0].argsort()]
+    grouped_array = np.split(data_np[:, 1:], np.unique(data_np[:, 0], axis=0, return_index=True)[1][1:])
+    # map nearest_neighbours to grouped_array
+    distances = np.concatenate([_nearest_neighbour_eps(i, n_neighbors) for i in grouped_array if i.shape[0] > 1])
+    # flatten array
+    distances_flat = distances.flatten()
+    distances_flat = distances_flat[np.isfinite(distances_flat)]
+    distances_sorted = np.sort(distances_flat)
+    if method == 'kneepoint':
+        k1 = KneeLocator(
+            np.arange(0, distances_sorted.shape[0]),
+            distances_sorted,
+            S=kwargs['S'],
+            online=kwargs['online'],
+            curve=kwargs['curve'],
+            interp_method=kwargs['interp_method'],
+            direction=kwargs['direction'],
+            polynomial_degree=kwargs['polynomial_degree'],
+        )
+
+        eps = distances_sorted[k1.knee]
+
+    elif method == 'mean':
+        eps = np.mean(distances_sorted) * kwargs['mean_multiplier']
+
+    elif method == 'median':
+        eps = np.median(distances_sorted) * kwargs['median_multiplier']
+
+    if plot:
+        fig, ax = plt.subplots(figsize=plt_size)
+        ax.plot(distances_sorted)
+        ax.axhline(eps, color='r', linestyle='--')
+        ax.set_xlabel('Sorted Distance Index')
+        ax.set_ylabel('Nearest Neighbour Distance')
+        ax.set_title(f'Estimated eps: {eps}')
+        plt.show()
+
+    return eps
