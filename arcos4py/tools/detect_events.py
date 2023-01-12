@@ -7,7 +7,7 @@ Example:
 """
 from __future__ import annotations
 
-from typing import Union
+from typing import Union, Any
 
 import numpy as np
 import pandas as pd
@@ -427,13 +427,13 @@ def estimate_eps(
     if method not in method_option:
         raise ValueError(f"Method must be one of {method_option}")
 
-    allowedtypes = {
+    allowedtypes: dict[str, str] = {
         'kneepoint': 'kneepoint_values',
         'mean': 'mean_values',
         'median': 'median_values',
     }
 
-    kwdefaults = {
+    kwdefaults: dict[str, Any] = {
         'S': 1,
         'online': True,
         'curve': 'convex',
@@ -444,7 +444,7 @@ def estimate_eps(
         'polynomial_degree': 7,
     }
 
-    kwtypes = {
+    kwtypes: dict[str, Any] = {
         'S': int,
         'online': bool,
         'curve': str,
@@ -455,7 +455,7 @@ def estimate_eps(
         'median_multiplier': (float, int),
     }
 
-    allowedkwargs = {
+    allowedkwargs: dict[str, list[str]] = {
         'kneepoint_values': ['S', 'online', 'curve', 'interp_method', 'direction', 'polynomial_degree'],
         'mean_values': ['mean_multiplier'],
         'median_values': ['median_multiplier'],
@@ -508,7 +508,7 @@ def estimate_eps(
         ax.axhline(eps, color='r', linestyle='--')
         ax.set_xlabel('Sorted Distance Index')
         ax.set_ylabel('Nearest Neighbour Distance')
-        ax.set_title(f'Estimated eps: {eps}')
+        ax.set_title(f'Estimated eps: {eps:.4f}')
         plt.show()
 
     return eps

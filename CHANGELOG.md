@@ -11,7 +11,7 @@ epsPrev is the maximum distance cells within collective events can be separated 
 If set to 'None', as default, the same value as for eps is used.
 
 ### Added
-- New function to estimate the eps paramter used for DBSCAN clustering based on the nearest neighbour distribution.
+- New function to estimate_eps (import from tools) to estimate the eps paramter used for DBSCAN clustering based on the nearest neighbour distribution.
 - Tests for said function.
 
 ## [0.1.5] - 2022-08-23
