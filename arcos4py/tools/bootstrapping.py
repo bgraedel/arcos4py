@@ -1,130 +1,277 @@
+"""Tools for resampling data and bootstrapping."""
+
 from __future__ import annotations
 import pandas as pd
 import numpy as np
-from typing import Union
-from arcos4py.arcos4py import ARCOS
-from arcos4py.tools import calcCollevStats
+import warnings
 from tqdm import tqdm
+from typing import Union
 
 
-def _get_xy_change(df: pd.DataFrame, object_id_name: str = 'track_id', posCols: list = ['x', 'y']) -> pd.DataFrame:
-    """calculate xy change for each object"""
+def _get_xy_change(
+    df: pd.DataFrame, object_id_name: str = 'track_id', posCols: list = ['x', 'y']
+) -> tuple(pd.DataFrame, list[str]):
+    """Calculate xy change for each object."""
     # get xy change for each object
     df_new = df.copy(deep=True)
     change_cols = [f'{i}_change' for i in posCols]
-    df_new[change_cols] = df_new.groupby(object_id_name)[posCols].diff()
-    return df_new
+    cumsum_cols = [f'{i}_cumsum_change' for i in change_cols]
+    df_new[change_cols] = df_new.groupby(object_id_name)[posCols].diff(axis=0)
+    df_new[cumsum_cols] = df_new.groupby(object_id_name)[change_cols].cumsum()
+    df_new[cumsum_cols] = df_new[cumsum_cols].fillna(0)
+    return df_new, cumsum_cols
 
-def _shuffle_xy_first_frame(df: pd.DataFrame, posCols: list = ['x', 'y'], frame_col: str = 't', seed=42) -> pd.DataFrame:
-    """shuffle xy position for each object in the first frame"""
-    # get first frame for each object
-    first_frame = df[df[frame_col] == df[frame_col].min()].copy(deep=True)
-    # shuffle xy position for each object in the first frame
-    rng = np.random.default_rng(seed=seed)
-    indeces = rng.permutation(len(first_frame))
-    first_frame[posCols] = first_frame[posCols].iloc[indeces].to_numpy()
-    # merge shuffled first frame with the rest of the data
-    df_new = pd.concat([first_frame, df[df[frame_col] > df[frame_col].min()]], ignore_index=True)
-    return df_new
 
-def _shuffle_xy_first_frame_track_id(df: pd.DataFrame, posCols: list = ['x', 'y'], frame_col: str = 't', object_id_name='track_id', seed=42) -> pd.DataFrame:
-    """shuffle xy position for each object in the first frame"""
-    # get first frame for each object
+def shuffle_tracks(
+    df: pd.DataFrame, object_id_name: str = 'track_id', posCols: list = ['x', 'y'], seed=42
+) -> pd.DataFrame:
+    """Resample tracks by switching the first timepoint\
+        positions of two tracks and then propagating the cummulative difference."""
     df_new = df.copy(deep=True)
-    new_oid = f'{object_id_name}_temp4shuffle'
-    df_new[new_oid] = df_new[object_id_name]
-    shuffle_cols = posCols + [new_oid] + [f'{i}_change' for i in posCols]
-    first_frame = df_new[df_new[frame_col] == df_new[frame_col].min()].copy(deep=True)
-    # shuffle xy position for each object in the first frame
-    rng = np.random.default_rng(seed=seed)
-    indeces = rng.permutation(len(first_frame))
-    first_frame[shuffle_cols] = first_frame[shuffle_cols].iloc[indeces].to_numpy()
-    # merge shuffled first frame with the rest of the data
-    df_new = pd.concat([first_frame, df_new[df_new[frame_col] > df_new[frame_col].min()]], ignore_index=True)
-    return df_new, new_oid
+    # Set the random seed
+    rng = np.random.default_rng(seed)
+    # Get unique track IDs
+    track_ids = df_new[object_id_name].unique()
+    # Keep track of the track IDs that have been switched
+    switched_tracks = set()
+    # calculate relative coordinate change
+    df_new, change_cols = _get_xy_change(df_new, object_id_name, posCols)
+    # Iterate over the unique track IDs
+    for track_id in track_ids:
+        # Skip the track if it has already been switched
+        if track_id in switched_tracks:
+            continue
+        # Get a random track ID that has not been switched yet
+        available_track_ids = np.array([tid for tid in track_ids if tid not in switched_tracks and tid != track_id])
+        if available_track_ids.size == 0:
+            continue
+        random_track_id = rng.choice(available_track_ids)
+        # Get the rows with the current track ID
+        track_rows = df_new[df_new[object_id_name] == track_id].copy()
+        # Get the rows with the random track ID
+        random_track_rows = df_new[df_new[object_id_name] == random_track_id].copy()
+
+        # Switch the first timepoint positions of the two tracks
+        df_new.loc[track_rows.index, posCols] = random_track_rows[posCols].iloc[0].to_numpy()
+        df_new.loc[random_track_rows.index, posCols] = track_rows[posCols].iloc[0].to_numpy()
+        # Add the relative position shift to the rest of the timepoints for the current track
+        df_new.loc[track_rows.index, posCols] += track_rows[change_cols].to_numpy()
+        # Add the relative position shift to the rest of the timepoints for the random track
+        df_new.loc[random_track_rows.index, posCols] += random_track_rows[change_cols].to_numpy()
+        # Add the switched track IDs to the set
+        switched_tracks.add(track_id)
+        switched_tracks.add(random_track_id)
+    return df_new
 
 
-def shuffle_position(df: pd.DataFrame, object_id_name: Union[str, None] = 'track_id', posCols: list = ['x', 'y'], frame_col: str = 't', seed: int = 42) -> pd.DataFrame:
-    for i in posCols:
-        if i not in df.columns:
-            raise ValueError(f'{i} not in df.columns')
-    if frame_col not in df.columns:
-        raise ValueError('frame_col not in df.columns')
-    if object_id_name is None:
-        raise ValueError('object_id_name currently needed')
-    if object_id_name not in df.columns:
-        raise ValueError('object_id_name not in df.columns')
-    change_cols = [f'{i}_change' for i in posCols]
-    # get xy change for each object
-    df_xy_change = _get_xy_change(df, object_id_name, posCols)
-    first_frame = df_xy_change[df_xy_change[frame_col] == df_xy_change[frame_col].min()].copy(deep=True)
-    df_xy_change.loc[df_xy_change[frame_col] == df_xy_change[frame_col].min(), change_cols] = first_frame[posCols].to_numpy()
-    # shuffle xy position for each object in the first frame
-    df_shuffled, old_trackid_name = _shuffle_xy_first_frame_track_id(df_xy_change, posCols, frame_col, object_id_name, seed=seed)
-    # calculate new xy position for each object
-    temp = df_shuffled.groupby(object_id_name)[change_cols].cumsum()
-    df_shuffled[posCols] = temp
-    df_shuffled.drop(change_cols +[old_trackid_name], axis=1, inplace=True)
-    return df_shuffled
+def shuffle_timepoints(
+    df: pd.DataFrame,
+    objet_id_name: str = 'track_id',
+    frame_column: str = 'time',
+    seed=42,
+) -> pd.DataFrame:
+    """Resample data by shuffling data from timepoints on a per trajectory basis."""
+    df_new = df.copy(deep=True)
+    # Set the random seed
+    rng = np.random.default_rng(seed)
+    # Get unique track IDs
+    track_ids = df_new[objet_id_name].unique()
+    # Iterate over the unique track IDs
+    for track_id in track_ids:
+        # Get the rows with the current track ID
+        track_rows = df_new[df_new[objet_id_name] == track_id].copy()
+        # Shuffle the timepoints
+        track_rows_np = track_rows[frame_column].to_numpy()
+        rng.shuffle(track_rows_np)
+        # Set the shuffled timepoints
+        df_new.loc[track_rows.index, frame_column] = track_rows_np
+    df_new.sort_values(by=[frame_column], inplace=True)
+    return df_new
 
 
-def bootstrap_ARCOS_xy(data: pd.DataFrame, posCols: list = ["x"], frame_column: str = 'time', id_column: str = 'id', 
-        measurement_column: str = 'meas', clid_column: str = 'clTrackID', smoothK = 3, biasK: int = 51, peakThr: float = 0.2, binThr: float = 0.1, 
-        polyDeg: int = 1, biasMet: str = "runmed", eps: float = 2, epsPrev: float | None = None, minClsz: int = 1, nPrev: int = 1, n=1000, seed=42, verbose=False) -> pd.DataFrame:
-    for i in posCols:
+def _get_activity_blocks(data: np.ndarray) -> list[np.ndarray]:
+    """Get the activity blocks of a binary activity column."""
+    # Get the indices of the activity blocks
+    activity_block_indices = np.where(np.diff(data) != 0)[0] + 1
+    # Get the activity blocks
+    activity_blocks = np.split(data, activity_block_indices)
+    # Remove empty activity blocks
+    activity_blocks = [block for block in activity_blocks if block.size > 0]
+    return activity_blocks
+
+
+def shuffle_activity_bocks_per_trajectory(
+    df: pd.DataFrame, objet_id_name: str, frame_column: str, meas_column: str, seed=42
+) -> pd.DataFrame:
+    """Resample data by shuffling the activity blocks of a binary activity column on a per trajectory basis."""
+    df_new = df.copy(deep=True)
+    # check if data in meas_column is binary
+    if not np.array_equal(np.unique(df_new[meas_column]), np.array([0, 1])):
+        raise ValueError('Data in meas_column must be binary')
+
+    # raise warning if 1 makes up more than 25% of the array
+    if np.sum(df_new[meas_column]) / df_new[meas_column].size > 0.25:
+        warnings.warn(
+            'More than 25%% of the data in meas_column is 1.\
+            This could impact the validity of this resampling approach.'
+        )
+
+    # Set the random seed
+    rng = np.random.default_rng(seed)
+    # Get unique track IDs
+    track_ids = df_new[objet_id_name].unique()
+    # Iterate over the unique track IDs
+    for track_id in track_ids:
+        # Get the rows with the current track ID
+        track_rows = df_new[df_new[objet_id_name] == track_id].copy()
+        # Get the activity blocks
+        meas_array = track_rows[meas_column].to_numpy()
+        activity_blocks = _get_activity_blocks(meas_array)
+        # Shuffle the activity blocks
+        rng.shuffle(activity_blocks)
+        # Set the shuffled activity blocks
+        df_new.loc[track_rows.index, meas_column] = np.concatenate(activity_blocks)
+    df_new.sort_values(by=[frame_column], inplace=True)
+    return df_new
+
+
+def shuffle_coordinates_per_timepoint(df: pd.DataFrame, posCols: list[str], frame_column: str, seed=42) -> pd.DataFrame:
+    """Resample data by shuffling the coordinates of a trajectory on a per timepoint basis."""
+    df_new = df.copy(deep=True)
+    # Get unique timepoints
+    timepoints = df_new[frame_column].unique()
+
+    # Set the random seed
+    rng = np.random.default_rng(seed)
+    # Iterate over the unique timepoints
+    for timepoint in timepoints:
+        # Get the rows with the current timepoint
+        timepoint_rows = df_new[df_new[frame_column] == timepoint].copy()
+        # Shuffle the coordinates
+        timepoint_rows_np = timepoint_rows[posCols].to_numpy()
+        rng.shuffle(timepoint_rows_np)
+        # Set the shuffled coordinates
+        df_new.loc[timepoint_rows.index, posCols] = timepoint_rows_np
+    return df_new
+
+
+def shift_timepoints_per_trajectory(df: pd.DataFrame, objet_id_name: str, frame_column: str, seed=42) -> pd.DataFrame:
+    """Resample data by shifting the timepoints a random ammount of a trajectory on a per trajectory basis."""
+    df_new = df.copy(deep=True)
+    # Get unique track IDs
+    track_ids = df_new[objet_id_name].unique()
+
+    # Set the random seed
+    rng = np.random.default_rng(seed)
+    # Iterate over the unique track IDs
+    for track_id in track_ids:
+        # Get the rows with the current track ID
+        track_rows = df_new[df_new[objet_id_name] == track_id].copy()
+        # Get the timepoints
+        timepoints = track_rows[frame_column].to_numpy()
+        # Get the shift
+        shift = rng.integers(-timepoints.size, timepoints.size)
+        # Shift the timepoints
+        timepoints = np.roll(timepoints, shift)
+        # Set the shifted timepoints
+        df_new.loc[track_rows.index, frame_column] = timepoints
+    df_new.sort_values(by=[frame_column], inplace=True)
+    return df_new
+
+
+def resample_data(
+    data: pd.DataFrame,
+    posCols: list,
+    frame_column: str,
+    id_column: str,
+    meas_column: Union[str, None] = None,
+    method: str = 'shuffle_tracks',
+    n=100,
+    seed=42,
+    show_progress=True,
+    verbose=False,
+) -> pd.DataFrame:
+    """Resamples data in order to perform bootstrapping analysis.
+
+    Arguments:
+        data (pd.Dataframe): The data to bootstrap
+        posCols (list, optional): The columns to use for the position.
+        frame_column (str, optional): The column to use for the frame.
+        id_column (str, optional): The column to use for the object ID.
+        meas_column (str, optional): The column to use for the measurement.
+            Only needed for 'activity_blocks_shuffle'. Defaults to 'm'.
+        method (str, optional): The method to use for bootstrapping. Defaults to 'shuffle_tracks'.
+            Available methods are: "shuffle_tracks", 'shuffle_tracks': shuffle_track, 'shuffle_timepoints',
+            'shift_timepoints', 'shuffle_binary_blocks', 'shuffle_coordinates_timepoint'
+        n (int, optional): The number of resample iterations. Defaults to 100.
+        seed (int, optional): The random seed. Defaults to 42.
+        verbose (bool, optional): Whether to print progress. Defaults to False.
+
+    Returns:
+        pd.DataFrame: The bootstrapped data
+    """
+    method_dict: dict[str, callable] = {
+        'shuffle_tracks': shuffle_tracks,
+        'shuffle_timepoints': shuffle_timepoints,
+        'shift_timepoints': shift_timepoints_per_trajectory,
+        'shuffle_binary_blocks': shuffle_activity_bocks_per_trajectory,
+        'shuffle_coordinates_timepoint': shuffle_coordinates_per_timepoint,
+    }
+
+    function_args: dict[str, tuple] = {
+        'shuffle_tracks': (id_column, posCols),
+        'shuffle_timepoints': (id_column, frame_column),
+        'shift_timepoints': (id_column, frame_column),
+        'shuffle_binary_blocks': (id_column, frame_column, meas_column),
+        'shuffle_coordinates_timepoint': (posCols, frame_column),
+    }
+
+    if method not in method_dict.keys():
+        raise ValueError(f'method must be one of {method_dict.keys()}')
+    if method == 'shuffle_binary_blocks' and meas_column is None:
+        raise ValueError('meas_column must be set for binary_blocks_shuffle')
+
+    # Check if the columns are in the data
+    if method == 'shuffle_binary_blocks':
+        relevant_columns = posCols + [frame_column, id_column, meas_column]
+    else:
+        relevant_columns = posCols + [frame_column, id_column]
+
+    # Check if the columns are in the data
+    for i in relevant_columns:
         if i not in data.columns:
             raise ValueError(f'{i} not in df.columns')
-    if frame_column not in data.columns:
-        raise ValueError('frame_col not in df.columns')
-    if id_column is None:
-        raise ValueError('object_id_name currently needed')
-    if id_column not in data.columns:
-        raise ValueError('object_id_name not in df.columns')
-    
-    stats_df_list = []
-    ts = ARCOS(data, id_column=id_column, posCols=posCols, frame_column=frame_column, measurement_column=measurement_column, clid_column=clid_column)
-    ts.interpolate_measurements()
-    ts.bin_measurements(smoothK, biasK, peakThr, binThr, polyDeg, biasMet)
-    df_arcos = ts.trackCollev(eps, epsPrev, minClsz, nPrev)
-    if df_arcos.empty:
-        raise ValueError('no events detected in control condition')
-    stats_df_original = calcCollevStats().calculate(df_arcos, frame_column, clid_column, id_column, posCols)
-    rng = np.random.default_rng(seed=seed)
-    integer_seeds = rng.integers(1000000, size=n)
+
+    # check if there are any Nan in the columns selected
+    na_cols = []
+    for i in relevant_columns:
+        if data[posCols].isnull().values.any():
+            na_cols.append(i)
+    if na_cols:
+        warnings.warn(f'NaN values in {na_cols}, default behaviour is to drop these rows')
+        data.dropna(subset=na_cols, inplace=True)
+
+    # Check if data is sorted
+    if not data[frame_column].is_monotonic_increasing:
+        # Sort the data
+        data = data.sort_values(frame_column)
+
+    rng = np.random.default_rng(seed)
+    # create a list of random numbers between 0 and 1000000
+    seed_list = rng.integers(1_000_000_000, size=n)
+    df_out = []
     # shuffle xy position for each object
-    print(f'Shuffling position for each object {n} times')
-    for i in tqdm(range(n)):
-        data_new = shuffle_position(data, object_id_name=id_column, posCols=posCols, frame_col=frame_column, seed=integer_seeds[i])
+    if verbose:
+        print(f'Resampling for each object {n} times')
+
+    bootstrapping_func = method_dict[method]
+    for i in tqdm(range(n), disable=not show_progress):
+        _seed = seed_list[i]
+        data_new = bootstrapping_func(data, *function_args[method], seed=_seed)
         if verbose:
-            print(f'Calculating ARCOS for shuffled data {i}')
             print(f'Original data: {data}')
             print(f'Shuffled data: {data_new}')
-        ts = ARCOS(data_new, id_column=id_column, posCols=posCols, frame_column=frame_column, measurement_column=measurement_column, clid_column=clid_column)
-        ts.interpolate_measurements()
-        ts.bin_measurements(smoothK, biasK, peakThr, binThr, polyDeg, biasMet)
-        df_arcos = ts.trackCollev(eps, epsPrev, minClsz, nPrev)
-        if not df_arcos.empty:
-            stats_df = calcCollevStats().calculate(df_arcos, frame_column, clid_column, id_column, posCols)
-            stats_df['bootstrap_iteration'] = i
-            stats_df_list.append(stats_df)
-        else:
-            if verbose:
-                print(f'No events found in shuffled data {i}')
 
-    print('Calculating statistics')
-    stats_df = pd.concat(stats_df_list, ignore_index=True)
-    print('Calculate significance compared to original data')
-    return stats_df, stats_df_original
-
-
-if __name__ == "__main__":
-    data = pd.read_csv('../objNuclei_1line_clean_tracks (1).csv')
-    print(data.columns)
-    out, yey = bootstrap_ARCOS_xy(data, posCols=['objNuclei_Location_Center_X', 'objNuclei_Location_Center_Y'], 
-                                    frame_column='Image_Metadata_T', id_column='track_id', measurement_column='objNucleiS_Intensity_MeanIntensity_imRATIO', 
-                                    clid_column='clTrackID', smoothK = 3, biasK = 51, peakThr = 0.5, binThr = 0.01, polyDeg = 1, 
-                                    biasMet = "runmed", eps = 35, epsPrev = None, minClsz = 3, nPrev= 1, n=1000, seed=42, verbose=False)
-
-    print(out)
-    print(yey)
-    print('done')
+        data_new['iteration'] = np.repeat(i, len(data_new))
+        df_out.append(data_new)
+    return pd.concat(df_out)
