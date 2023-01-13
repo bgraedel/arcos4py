@@ -19,7 +19,7 @@ class calcCollevStats:
         """Class to calculate statistics of collective events."""
         pass
 
-    def _calculate_duration_size_group(self, data: np.ndarray) -> np.ndarray:
+    def _calculate_stats_group(self, data: np.ndarray) -> np.ndarray:
         """Calculates duration and size for the collective event in the dataframe.
 
         Arguments:
@@ -60,7 +60,7 @@ class calcCollevStats:
         )
         return d
 
-    def _get_collev_duration(
+    def _get_collev_stats(
         self,
         data: pd.DataFrame,
         frame_column: str,
@@ -96,6 +96,8 @@ class calcCollevStats:
             "first_frame_centroid",
             "last_frame_centroid",
         ]
+        if data.empty:
+            return pd.DataFrame(data={i: [np.nan] for i in cols})
         subset = [frame_column, obj_id_column, collev_id]
         if posCol:
             subset.extend(posCol)
@@ -113,7 +115,7 @@ class calcCollevStats:
         data_np_sorted = data_np[data_np[:, 2].argsort()]
         grouped_array = np.split(data_np_sorted, np.unique(data_np_sorted[:, 2], axis=0, return_index=True)[1][1:])
         # map to grouped_array
-        out = map(self._calculate_duration_size_group, grouped_array)
+        out = map(self._calculate_stats_group, grouped_array)
         out_list = [i for i in out]
         df = pd.DataFrame(out_list, columns=cols)
         return df
@@ -142,7 +144,5 @@ class calcCollevStats:
                 "first_frame_centroid" and "last_frame_centroid"
                 of all collective events.
         """
-        if data.empty:
-            return data
-        colev_stats = self._get_collev_duration(data, frame_column, collid_column, obj_id_column, posCol)
+        colev_stats = self._get_collev_stats(data, frame_column, collid_column, obj_id_column, posCol)
         return colev_stats

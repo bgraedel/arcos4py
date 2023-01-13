@@ -1,11 +1,16 @@
 """Tools for resampling data and bootstrapping."""
 
 from __future__ import annotations
-import pandas as pd
-import numpy as np
+
 import warnings
+from functools import partial
+from itertools import zip_longest
+from multiprocessing import Pool
+from typing import Callable, Union
+
+import numpy as np
+import pandas as pd
 from tqdm import tqdm
-from typing import Union
 
 
 def _get_xy_change(
@@ -101,7 +106,7 @@ def _get_activity_blocks(data: np.ndarray) -> list[np.ndarray]:
 
 
 def shuffle_activity_bocks_per_trajectory(
-    df: pd.DataFrame, objet_id_name: str, frame_column: str, meas_column: str, seed=42
+    df: pd.DataFrame, objet_id_name: str, frame_column: str, meas_column: str, seed=42, alternating_blocks=True
 ) -> pd.DataFrame:
     """Resample data by shuffling the activity blocks of a binary activity column on a per trajectory basis."""
     df_new = df.copy(deep=True)
@@ -127,8 +132,31 @@ def shuffle_activity_bocks_per_trajectory(
         # Get the activity blocks
         meas_array = track_rows[meas_column].to_numpy()
         activity_blocks = _get_activity_blocks(meas_array)
-        # Shuffle the activity blocks
-        rng.shuffle(activity_blocks)
+        # if alternating blocks is True, group the activity blocks by its value,
+        # then suffle them separately and alternate them
+
+        if alternating_blocks:
+            # check if the first block is 1 or 0
+            if activity_blocks[0][0] == 1:
+                first_block = 1
+                second_block = 0
+            else:
+                first_block = 0
+                second_block = 1
+            # group the activity blocks by its value
+            block_first = [block for block in activity_blocks if block[0] == first_block]
+            block_second = [block for block in activity_blocks if block[0] == second_block]
+            rng.shuffle(block_first)
+            rng.shuffle(block_second)
+            activity_blocks = []
+            for b1, b0 in zip_longest(block_first, block_second):
+                if b1 is not None:
+                    activity_blocks.append(b1)
+                if b0 is not None:
+                    activity_blocks.append(b0)
+        else:
+            # Shuffle the activity blocks
+            rng.shuffle(activity_blocks)
         # Set the shuffled activity blocks
         df_new.loc[track_rows.index, meas_column] = np.concatenate(activity_blocks)
     df_new.sort_values(by=[frame_column], inplace=True)
@@ -185,23 +213,24 @@ def resample_data(
     frame_column: str,
     id_column: str,
     meas_column: Union[str, None] = None,
-    method: str = 'shuffle_tracks',
+    method: Union[str, list[str]] = 'shuffle_tracks',
     n=100,
     seed=42,
     show_progress=True,
     verbose=False,
+    paralell_processing=True,
 ) -> pd.DataFrame:
     """Resamples data in order to perform bootstrapping analysis.
 
     Arguments:
         data (pd.Dataframe): The data to bootstrap
-        posCols (list, optional): The columns to use for the position.
-        frame_column (str, optional): The column to use for the frame.
-        id_column (str, optional): The column to use for the object ID.
+        posCols (list): The columns to use for the position.
+        frame_column (str): The column to use for the frame.
+        id_column (str): The column to use for the object ID.
         meas_column (str, optional): The column to use for the measurement.
-            Only needed for 'activity_blocks_shuffle'. Defaults to 'm'.
+            Only needed for 'activity_blocks_shuffle'. Defaults to None.
         method (str, optional): The method to use for bootstrapping. Defaults to 'shuffle_tracks'.
-            Available methods are: "shuffle_tracks", 'shuffle_tracks': shuffle_track, 'shuffle_timepoints',
+            Available methods are: "shuffle_tracks", 'shuffle_timepoints',
             'shift_timepoints', 'shuffle_binary_blocks', 'shuffle_coordinates_timepoint'
         n (int, optional): The number of resample iterations. Defaults to 100.
         seed (int, optional): The random seed. Defaults to 42.
@@ -210,7 +239,7 @@ def resample_data(
     Returns:
         pd.DataFrame: The bootstrapped data
     """
-    method_dict: dict[str, callable] = {
+    method_dict: dict[str, Callable] = {
         'shuffle_tracks': shuffle_tracks,
         'shuffle_timepoints': shuffle_timepoints,
         'shift_timepoints': shift_timepoints_per_trajectory,
@@ -226,13 +255,23 @@ def resample_data(
         'shuffle_coordinates_timepoint': (posCols, frame_column),
     }
 
-    if method not in method_dict.keys():
-        raise ValueError(f'method must be one of {method_dict.keys()}')
-    if method == 'shuffle_binary_blocks' and meas_column is None:
-        raise ValueError('meas_column must be set for binary_blocks_shuffle')
+    resampling_func_list = []
+
+    # convert method to list if necessary
+    if isinstance(method, str):
+        methods = [method]
+    else:
+        methods = method
+
+    # Check if the method is valid
+    for method in methods:
+        if method not in method_dict.keys():
+            raise ValueError(f'method must be one of {method_dict.keys()}')
+        if method == 'shuffle_binary_blocks' and meas_column is None:
+            raise ValueError('meas_column must be set for binary_blocks_shuffle')
 
     # Check if the columns are in the data
-    if method == 'shuffle_binary_blocks':
+    if 'shuffle_binary_blocks' in methods:
         relevant_columns = posCols + [frame_column, id_column, meas_column]
     else:
         relevant_columns = posCols + [frame_column, id_column]
@@ -264,14 +303,71 @@ def resample_data(
     if verbose:
         print(f'Resampling for each object {n} times')
 
-    bootstrapping_func = method_dict[method]
-    for i in tqdm(range(n), disable=not show_progress):
-        _seed = seed_list[i]
-        data_new = bootstrapping_func(data, *function_args[method], seed=_seed)
-        if verbose:
-            print(f'Original data: {data}')
-            print(f'Shuffled data: {data_new}')
+    # create a list of functions to call
+    for method in methods:
+        resampling_func_list.append(method_dict[method])
+    iter_range = range(1, n + 1)
+    if paralell_processing:
+        with Pool() as p:
+            partial_resample = partial(
+                _apply_resampling,
+                data=data,
+                methods=methods,
+                resampling_func_list=resampling_func_list,
+                seed_list=seed_list,
+                function_args=function_args,
+            )
+            with tqdm(total=n) as pbar:
 
-        data_new['iteration'] = np.repeat(i, len(data_new))
-        df_out.append(data_new)
-    return pd.concat(df_out)
+                for data_new in p.imap_unordered(partial_resample, iter_range):
+                    pbar.update()
+                    df_out.append(data_new)
+    else:
+        # iterate over the number of resamples
+        for i in tqdm(iter_range, disable=not show_progress):
+            data_new = _apply_resampling(
+                iter_number=i,
+                data=data,
+                methods=methods,
+                resampling_func_list=resampling_func_list,
+                seed_list=seed_list,
+                function_args=function_args,
+            )
+            df_out.append(data_new)
+
+    data_it0 = data.copy()
+    data_it0['iteration'] = np.repeat(0, len(data_it0))
+    df_out.insert(0, data_it0)
+    return pd.concat(df_out)[data.columns.tolist() + ['iteration']]
+
+
+def _apply_resampling(
+    iter_number: int,
+    data: pd.DataFrame,
+    methods: list[str],
+    resampling_func_list: list[Callable],
+    seed_list: list[int],
+    function_args: dict[str, Callable],
+):
+    """Resamples data in order to perform bootstrapping analysis.
+
+    Arguments:
+        iter_number (int): The iteration number
+        data (pd.Dataframe): The data to bootstrap
+        methods (list[str]): The methods to use for bootstrapping.
+        resampling_func_list list(Callable): The function to use for bootstrapping.
+        seed_list list(int): The random seed.
+        function_args (dict[str, Callable]): The arguments for the bootstrap function.
+
+    Returns:
+        pd.DataFrame: The bootstrapped data
+    """
+    data_new = data.copy()
+    _seed = seed_list[iter_number - 1]
+
+    # iterate over the bootstrapping functions
+    for bootstrapping_func, method in zip(resampling_func_list, methods):
+        data_new = bootstrapping_func(data_new, *function_args[method], seed=_seed)
+
+    data_new['iteration'] = np.repeat(iter_number, len(data_new))
+    return data_new
