@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 def _get_xy_change(
     df: pd.DataFrame, object_id_name: str = 'track_id', posCols: list = ['x', 'y']
-) -> tuple(pd.DataFrame, list[str]):
+) -> tuple[pd.DataFrame, list[str]]:
     """Calculate xy change for each object."""
     # get xy change for each object
     df_new = df.copy(deep=True)
