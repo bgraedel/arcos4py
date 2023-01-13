@@ -347,7 +347,7 @@ def _apply_resampling(
     methods: list[str],
     resampling_func_list: list[Callable],
     seed_list: list[int],
-    function_args: dict[str, Callable],
+    function_args: dict[str, tuple],
 ):
     """Resamples data in order to perform bootstrapping analysis.
 
