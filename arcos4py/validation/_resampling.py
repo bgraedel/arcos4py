@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import warnings
-from functools import partial
 from itertools import zip_longest
-from multiprocessing import Pool
 from typing import Callable, Union
 
 import numpy as np
@@ -308,20 +306,21 @@ def resample_data(
         resampling_func_list.append(method_dict[method])
     iter_range = range(1, n + 1)
     if paralell_processing:
-        with Pool() as p:
-            partial_resample = partial(
-                _apply_resampling,
+        from joblib import Parallel, delayed
+
+        # iterate over the number of resamples
+        df_out = Parallel(n_jobs=-1)(
+            delayed(_apply_resampling)(
+                iter_number=i,
                 data=data,
                 methods=methods,
                 resampling_func_list=resampling_func_list,
                 seed_list=seed_list,
                 function_args=function_args,
             )
-            with tqdm(total=n) as pbar:
+            for i in tqdm(iter_range, disable=not show_progress)
+        )
 
-                for data_new in p.imap_unordered(partial_resample, iter_range):
-                    pbar.update()
-                    df_out.append(data_new)
     else:
         # iterate over the number of resamples
         for i in tqdm(iter_range, disable=not show_progress):

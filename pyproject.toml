@@ -54,6 +54,7 @@ toml = {version = "^0.10.2", optional = true}
 bump2version = {version = "^1.0.1", optional = true}
 PyYAML = { version = "^6.0", optional = true}
 tqdm = "^4.64.1"
+joblib = "^1.2.0"
 
 [tool.poetry.extras]
 test = [
