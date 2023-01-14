@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Union
-
 import matplotlib.pyplot as plt
 import pandas as pd
 from tqdm import tqdm
@@ -11,7 +9,7 @@ from tqdm import tqdm
 from arcos4py import ARCOS
 from arcos4py.tools import calcCollevStats
 
-from .resampling import resample_data
+from ._resampling import resample_data
 
 
 def bootstrap_arcos(
@@ -19,8 +17,8 @@ def bootstrap_arcos(
     posCols: list,
     frame_column: str,
     id_column: str,
-    meas_column: str = None,
-    method: Union[str, list[str]] = 'shuffle_tracks',
+    meas_column: str,
+    method: str | list[str] = 'shuffle_tracks',
     smoothK: int = 3,
     biasK: int = 51,
     peakThr: float = 0.2,
@@ -32,21 +30,23 @@ def bootstrap_arcos(
     minClsz: int = 1,
     nPrev: int = 1,
     stats_metric: str = "total_size",
-    n=100,
-    seed=42,
-    show_progress=True,
-    verbose=False,
-    paralell_processing=True,
+    n: int = 100,
+    seed: int = 42,
+    show_progress: bool = True,
+    verbose: bool = False,
+    paralell_processing: bool = True,
 ) -> pd.DataFrame:
     """Bootstrap data using the ARCOS algorithm.
 
-    Arugments:
+    Arguments:
         df: DataFrame containing the data to be bootstrapped.
         posCols: List of column names containing the x and y coordinates.
         frame_column: Name of the column containing the frame number.
         id_column: Name of the column containing the track id.
         meas_column: Name of the column containing the measurement.
-        method: Method used for bootstrapping. Can be either 'shuffle_tracks' or 'shift_timepoints'.
+        method: Method used for bootstrapping. Can be "shuffle_tracks", 'shuffle_timepoints', 'shift_timepoints',
+            'shuffle_binary_blocks', 'shuffle_coordinates_timepoint or a list of methods,
+            which will be applied in order of index.
         n: Number of bootstraps.
         seed: Seed for the random number generator.
         show_progress: Show a progress bar.

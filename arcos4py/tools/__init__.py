@@ -4,11 +4,11 @@ __author__ = """Benjamin Graedel"""
 __email__ = "benjamin.graedel@unibe.ch"
 __version__ = '0.1.5'
 
-from .binarize_detrend import binData
-from .cleandata import clipMeas, interpolation
-from .detect_events import detectCollev, estimate_eps
-from .filter_events import filterCollev
-from .stats import calcCollevStats
+from ._binarize_detrend import binData
+from ._cleandata import clipMeas, interpolation
+from ._detect_events import detectCollev, estimate_eps
+from ._filter_events import filterCollev
+from ._stats import calcCollevStats
 
 __all__ = [
     "binData",

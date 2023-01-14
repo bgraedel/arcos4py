@@ -43,15 +43,21 @@ markdown_extensions:
   - toc:
       baselevel: 2
       permalink: true
-      slugify: !!python/name:pymdownx.slugs.uslugify
+      slugify: !!python/object/apply:pymdownx.slugs.slugify {kwds: {case: lower}}
   - meta
 plugins:
   - include-markdown
   - search:
       lang: en
   - mkdocstrings:
-      watch:
-        - arcos4py
+      handlers:
+          python:
+            paths:
+              [arcos4py]
+            options:
+              show_submodules: true
+watch:
+  - arcos4py
 extra:
   social:
     - icon: fontawesome/brands/twitter
@@ -79,6 +85,6 @@ extra:
         - icon: material/emoticon-sad-outline
           name: This page could be improved
           data: 0
-          note: >- 
+          note: >-
             Thanks for your feedback! Help us improve this page by
             using our <a href="..." target=_blank>feedback form</a>.

@@ -2,9 +2,9 @@
 
 """Tests for `arcos_py` package."""
 
-from numpy import int64
 import pandas as pd
 import pytest
+from numpy import int64
 from pandas.testing import assert_frame_equal
 
 from arcos4py import ARCOS

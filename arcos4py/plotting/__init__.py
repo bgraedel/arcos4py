@@ -4,6 +4,6 @@ __author__ = """Benjamin Graedel"""
 __email__ = "benjamin.graedel@unibe.ch"
 __version__ = '0.1.5'
 
-from .plotting import NoodlePlot, dataPlots, plotOriginalDetrended, statsPlots
+from ._plotting import NoodlePlot, dataPlots, plotOriginalDetrended, statsPlots
 
 __all__ = ["plotOriginalDetrended", "dataPlots", "statsPlots", "NoodlePlot"]

@@ -1,5 +1,5 @@
-import pytest
 import pandas as pd
+import pytest
 
 from arcos4py.tools import estimate_eps
 
