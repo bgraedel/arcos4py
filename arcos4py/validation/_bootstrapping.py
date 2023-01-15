@@ -29,7 +29,7 @@ def bootstrap_arcos(
     epsPrev: float | None = None,
     minClsz: int = 1,
     nPrev: int = 1,
-    stats_metric: str = "total_size",
+    stats_metric: str | list[str] = ["total_size", "duration"],
     n: int = 100,
     seed: int = 42,
     show_progress: bool = True,
@@ -47,6 +47,18 @@ def bootstrap_arcos(
         method: Method used for bootstrapping. Can be "shuffle_tracks", 'shuffle_timepoints', 'shift_timepoints',
             'shuffle_binary_blocks', 'shuffle_coordinates_timepoint or a list of methods,
             which will be applied in order of index.
+        smoothK: Smoothing kernel size.
+        biasK: Bias kernel size.
+        peakThr: Threshold for peak detection.
+        binThr: Threshold for binarization.
+        polyDeg: Degree of the polynomial used for bias correction.
+        biasMet: Bias correction method. Can be 'none', 'runmed', 'lm'
+        eps: Epsilon parameter for DBSCAN.
+        epsPrev: Parameter for linking tracks. If None, eps is used.
+        minClsz: Minimum cluster size.
+        nPrev: Number of previous frames to consider for linking.
+        stats_metric: Metric to calculate. Can be "duration", "total_size", "min_size", "max_size" or a list of metrics.
+            Default is ["duration", "total_size"].
         n: Number of bootstraps.
         seed: Seed for the random number generator.
         show_progress: Show a progress bar.
@@ -55,17 +67,17 @@ def bootstrap_arcos(
     Returns:
         DataFrame containing the bootstrapped data.
     """
-    if stats_metric not in [
-        "duration",
-        "total_size",
-        "min_size",
-        "max_size",
-        "start_frame",
-        "end_frame",
-        "first_frame_centroid",
-        "last_frame_centroid",
-    ]:
-        raise ValueError(f"Invalid metric: {stats_metric}")
+    if not isinstance(stats_metric, list):
+        stats_metric = [stats_metric]
+
+    for stats_m in stats_metric:
+        if stats_m not in [
+            "duration",
+            "total_size",
+            "min_size",
+            "max_size",
+        ]:
+            raise ValueError(f"Invalid metric: {stats_metric}")
 
     clid_name = 'clid'
     stats_df_list = []
@@ -144,18 +156,26 @@ def bootstrap_arcos(
 
     stats_df = pd.concat(stats_df_list, ignore_index=True)
 
-    stats_df_mean = (
-        stats_df[['bootstrap_iteration', stats_metric]].groupby(['bootstrap_iteration']).agg(['mean']).reset_index()
+    stats_df_indexer = ['bootstrap_iteration'] + stats_metric
+    stats_df_mean: pd.DataFrame = (
+        stats_df[stats_df_indexer].groupby(['bootstrap_iteration']).agg(['mean']).reset_index()
     )
+    stats_df_mean = stats_df_mean.droplevel(level=1, axis=1)
     # for bootstrap iteratoins that did not detect any events, set the metric to 0
     stats_df_mean[stats_metric] = stats_df_mean[stats_metric].fillna(0)
-    stats_df_mean.plot.hist(x='bootstrap_iteration', y=stats_metric, bins=len(stats_df_mean))
-    it_0_value = stats_df_mean[stats_df_mean['bootstrap_iteration'] == 0]['total_size']['mean'].to_numpy()[0]
-    plt.axvline(it_0_value, color='red', ls='--')
-    mean_0 = stats_df_mean[stats_metric]['mean'][0]
-    means = stats_df_mean[stats_metric]['mean'][1:]
-    p_value = sum(means > mean_0) / len(means)
-    return stats_df, p_value
+    fig, axis = plt.subplots(1, 2, sharey=True)
+
+    stats_df_mean.plot.hist(
+        x='bootstrap_iteration', subplots=True, ax=axis, bins=len(stats_df_mean), alpha=0.5, legend=False
+    )
+    it_0_value = stats_df_mean[stats_df_mean['bootstrap_iteration'] == 0][stats_metric].to_numpy()[0]
+    axis[0].vlines(it_0_value[0], ymin=0, ymax=len(stats_df_mean['bootstrap_iteration']), color='red', ls='--')
+    axis[1].vlines(it_0_value[1], ymin=0, ymax=len(stats_df_mean['bootstrap_iteration']), color='red', ls='--')
+    # p_val = lambda x: (sum(x[1:] > x[0])) / (len(x[1:]))
+    pval = stats_df_mean[stats_metric].agg(_p_val_finite_sampling)
+    pval.name = 'p_value'
+    # p_value = sum(means > mean_0) / len(means)
+    return stats_df, pd.DataFrame(pval)
 
 
 def _apply_arcos(
@@ -198,3 +218,7 @@ def _apply_arcos(
     stats_df = calcCollevStats().calculate(df_arcos, frame_column, clid_name, id_column, posCols)
     stats_df['bootstrap_iteration'] = i_iter
     return stats_df
+
+
+def _p_val_finite_sampling(x):
+    return (1 + sum(x[1:] > x[0])) / (1 + len(x[1:]))
