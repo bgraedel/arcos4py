@@ -35,7 +35,8 @@ def bootstrap_arcos(
     show_progress: bool = True,
     verbose: bool = False,
     paralell_processing: bool = True,
-) -> pd.DataFrame:
+    plot: bool = True,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Bootstrap data using the ARCOS algorithm.
 
     Arguments:
@@ -163,19 +164,33 @@ def bootstrap_arcos(
     stats_df_mean = stats_df_mean.droplevel(level=1, axis=1)
     # for bootstrap iteratoins that did not detect any events, set the metric to 0
     stats_df_mean[stats_metric] = stats_df_mean[stats_metric].fillna(0)
-    fig, axis = plt.subplots(1, 2, sharey=True)
 
-    stats_df_mean.plot.hist(
-        x='bootstrap_iteration', subplots=True, ax=axis, bins=len(stats_df_mean), alpha=0.5, legend=False
-    )
-    it_0_value = stats_df_mean[stats_df_mean['bootstrap_iteration'] == 0][stats_metric].to_numpy()[0]
-    axis[0].vlines(it_0_value[0], ymin=0, ymax=len(stats_df_mean['bootstrap_iteration']), color='red', ls='--')
-    axis[1].vlines(it_0_value[1], ymin=0, ymax=len(stats_df_mean['bootstrap_iteration']), color='red', ls='--')
-    # p_val = lambda x: (sum(x[1:] > x[0])) / (len(x[1:]))
     pval = stats_df_mean[stats_metric].agg(_p_val_finite_sampling)
     pval.name = 'p_value'
+    df_p = pd.DataFrame(pval)
+
+    if plot:
+        fig, axis = plt.subplots(1, 2, sharey=True)
+        for ax, stats_col in zip(axis, stats_df_mean.columns[1:]):
+            ax.hist(stats_df_mean[stats_col], bins=len(stats_df_mean), alpha=0.5)
+            ax.set_title(stats_col)
+            ax.vlines(stats_df_mean[stats_col].iloc[0], ymin=0, ymax=ax.get_ylim()[1], color='red', ls='--')
+            ax.set_xlabel('Value')
+            ax.set_ylabel('Count')
+            ax.text(
+                ax.get_xlim()[1] * 0.8,
+                ax.get_ylim()[1] * 0.9,
+                f'p-value: \n {df_p.loc[stats_col, "p_value"]:.3f}',
+                ha='center',
+                va='center',
+                color='red',
+            )
+        fig.suptitle('Bootstrapped metrics')
+        plt.show()
+    # p_val = lambda x: (sum(x[1:] > x[0])) / (len(x[1:]))
+
     # p_value = sum(means > mean_0) / len(means)
-    return stats_df, pd.DataFrame(pval)
+    return stats_df, df_p
 
 
 def _apply_arcos(
@@ -220,5 +235,5 @@ def _apply_arcos(
     return stats_df
 
 
-def _p_val_finite_sampling(x):
+def _p_val_finite_sampling(x: pd.DataFrame):
     return (1 + sum(x[1:] > x[0])) / (1 + len(x[1:]))
