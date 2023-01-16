@@ -17,25 +17,19 @@ from arcos4py.validation._resampling import (
 def test__get_xy_change():
     # Create test dataframe
     test_df = pd.DataFrame({'track_id': [1, 1, 1, 2, 2, 2], 'x': [1, 2, 3, 4, 6, 8], 'y': [2, 3, 4, 5, 7, 9]})
+    true_out = np.array([[0, 0], [1, 1], [2, 2], [0, 0], [2, 2], [4, 4]], dtype=np.int64)
+
+    object_id_name = 'track_id'
+    posCols = ['x', 'y']
+    pos_cols_np = test_df[posCols].to_numpy()
+    factorized_oid, uniques = pd.factorize(test_df[object_id_name])
 
     # Test the function
-    df_new, cumsum_cols = _get_xy_change(test_df)
+    cumsum_group = _get_xy_change(pos_cols_np, factorized_oid)
 
     # Assert that the output is as expected
-    assert df_new.columns.tolist() == [
-        'track_id',
-        'x',
-        'y',
-        'x_change',
-        'y_change',
-        'x_cumsum_change',
-        'y_cumsum_change',
-    ]
-    np.testing.assert_equal(df_new.loc[0, 'x_change'], np.nan)
-    np.testing.assert_equal(df_new.loc[0, 'y_change'], np.nan)
-    assert df_new['x_cumsum_change'].iloc[0:].to_list() == [0.0, 1.0, 2.0, 0.0, 2.0, 4.0]
-    assert df_new['y_cumsum_change'].iloc[0:].to_list() == [0.0, 1.0, 2.0, 0.0, 2.0, 4.0]
-    assert cumsum_cols == ['x_cumsum_change', 'y_cumsum_change']
+    assert cumsum_group.shape == (6, 2)
+    np.testing.assert_equal(true_out, cumsum_group)
 
 
 def test_shuffle_tracks():

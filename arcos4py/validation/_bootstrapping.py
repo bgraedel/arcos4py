@@ -30,6 +30,8 @@ def bootstrap_arcos(
     minClsz: int = 1,
     nPrev: int = 1,
     stats_metric: str | list[str] = ["total_size", "duration"],
+    pval_alternative: str = "greater",
+    finite_correction: bool = True,
     n: int = 100,
     seed: int = 42,
     show_progress: bool = True,
@@ -60,6 +62,8 @@ def bootstrap_arcos(
         nPrev: Number of previous frames to consider for linking.
         stats_metric: Metric to calculate. Can be "duration", "total_size", "min_size", "max_size" or a list of metrics.
             Default is ["duration", "total_size"].
+        pval_alternative: Alternative hypothesis for the p-value calculation. Can be "two-sided", "less" or "greater".
+        finite_correction: Correct p-values for finite sampling. Default is True.
         n: Number of bootstraps.
         seed: Seed for the random number generator.
         show_progress: Show a progress bar.
@@ -81,7 +85,6 @@ def bootstrap_arcos(
             raise ValueError(f"Invalid metric: {stats_metric}")
 
     clid_name = 'clid'
-    stats_df_list = []
 
     if isinstance(method, str):
 
@@ -107,6 +110,80 @@ def bootstrap_arcos(
 
     print(f'Running ARCOS and calculating "{stats_metric}"...')
 
+    stats_df, stats_df_mean = _bootstrap_statistic(
+        df_resampled=df_resampled,
+        posCols=posCols,
+        frame_column=frame_column,
+        id_column=id_column,
+        meas_column=meas_column,
+        smoothK=smoothK,
+        biasK=biasK,
+        peakThr=peakThr,
+        binThr=binThr,
+        polyDeg=polyDeg,
+        biasMet=biasMet,
+        eps=eps,
+        epsPrev=epsPrev,
+        minClsz=minClsz,
+        nPrev=nPrev,
+        stats_metric=stats_metric,
+        show_progress=show_progress,
+        paralell_processing=paralell_processing,
+        clid_name=clid_name,
+        iterations=iterations,
+    )
+
+    pval = stats_df_mean[stats_metric].agg(lambda x: _p_val_finite_sampling(x, pval_alternative))
+    pval.name = 'p_value'
+    df_p = pd.DataFrame(pval)
+
+    if plot:
+        fig, axis = plt.subplots(1, 2, sharey=True)
+        for ax, stats_col in zip(axis, stats_df_mean.columns[1:]):
+            ax.hist(stats_df_mean[stats_col], bins=len(stats_df_mean), alpha=0.5)
+            ax.set_title(stats_col)
+            ax.vlines(stats_df_mean[stats_col].iloc[0], ymin=0, ymax=ax.get_ylim()[1], color='red', ls='--')
+            ax.set_xlabel('Value')
+            ax.set_ylabel('Count')
+            ax.text(
+                ax.get_xlim()[1] * 0.8,
+                ax.get_ylim()[1] * 0.9,
+                f'p-value: \n {df_p.loc[stats_col, "p_value"]:.3f}',
+                ha='center',
+                va='center',
+                color='red',
+            )
+        fig.suptitle('Bootstrapped metrics')
+        plt.show()
+    # p_val = lambda x: (sum(x[1:] > x[0])) / (len(x[1:]))
+
+    # p_value = sum(means > mean_0) / len(means)
+    return stats_df, df_p
+
+
+def _bootstrap_statistic(
+    df_resampled: pd.DataFrame,
+    iterations: list[int],
+    posCols: list,
+    frame_column: str,
+    id_column: str,
+    meas_column: str,
+    smoothK: int = 3,
+    biasK: int = 51,
+    peakThr: float = 0.2,
+    binThr: float = 0.1,
+    polyDeg: int = 1,
+    biasMet: str = "runmed",
+    eps: float = 2,
+    epsPrev: float | None = None,
+    minClsz: int = 1,
+    nPrev: int = 1,
+    stats_metric: list[str] = ['duration', 'total_size'],
+    show_progress: bool = True,
+    paralell_processing: bool = True,
+    clid_name: str = 'clid',
+):
+    """Calculate the bootstrapped statistics."""
     if paralell_processing:
         from joblib import Parallel, delayed
 
@@ -133,6 +210,7 @@ def bootstrap_arcos(
             for i_iter in tqdm(iterations, disable=not show_progress)
         )
     else:
+        stats_df_list = []
         for i_iter in tqdm(iterations, disable=not show_progress):
             stats_df = _apply_arcos(
                 i_iter=i_iter,
@@ -164,33 +242,7 @@ def bootstrap_arcos(
     stats_df_mean = stats_df_mean.droplevel(level=1, axis=1)
     # for bootstrap iteratoins that did not detect any events, set the metric to 0
     stats_df_mean[stats_metric] = stats_df_mean[stats_metric].fillna(0)
-
-    pval = stats_df_mean[stats_metric].agg(_p_val_finite_sampling)
-    pval.name = 'p_value'
-    df_p = pd.DataFrame(pval)
-
-    if plot:
-        fig, axis = plt.subplots(1, 2, sharey=True)
-        for ax, stats_col in zip(axis, stats_df_mean.columns[1:]):
-            ax.hist(stats_df_mean[stats_col], bins=len(stats_df_mean), alpha=0.5)
-            ax.set_title(stats_col)
-            ax.vlines(stats_df_mean[stats_col].iloc[0], ymin=0, ymax=ax.get_ylim()[1], color='red', ls='--')
-            ax.set_xlabel('Value')
-            ax.set_ylabel('Count')
-            ax.text(
-                ax.get_xlim()[1] * 0.8,
-                ax.get_ylim()[1] * 0.9,
-                f'p-value: \n {df_p.loc[stats_col, "p_value"]:.3f}',
-                ha='center',
-                va='center',
-                color='red',
-            )
-        fig.suptitle('Bootstrapped metrics')
-        plt.show()
-    # p_val = lambda x: (sum(x[1:] > x[0])) / (len(x[1:]))
-
-    # p_value = sum(means > mean_0) / len(means)
-    return stats_df, df_p
+    return stats_df, stats_df_mean
 
 
 def _apply_arcos(
@@ -235,5 +287,23 @@ def _apply_arcos(
     return stats_df
 
 
-def _p_val_finite_sampling(x: pd.DataFrame):
-    return (1 + sum(x[1:] > x[0])) / (1 + len(x[1:]))
+def _p_val_finite_sampling(x: pd.DataFrame, alternative: str = 'greater'):
+    if alternative == 'two-sided':
+        return 2 * min(1 + sum(x[1:] >= x[0]) / len(x[1:]), sum(x[1:] <= x[0]) / len(x[1:]))
+    elif alternative == 'greater':
+        return sum(1 + x[1:] >= x[0]) / (len(x[1:] + 1))
+    elif alternative == 'less':
+        return sum(1 + x[1:] <= x[0]) / (len(x[1:]) + 1)
+    else:
+        raise ValueError(f'alternative must be one of "two-sided", "greater", "less", got {alternative}')
+
+
+def _p_val_infinite_sampling(x: pd.DataFrame, alternative: str = 'greater'):
+    if alternative == 'two-sided':
+        return 2 * min(sum(x[1:] >= x[0]) / len(x[1:]), sum(x[1:] <= x[0]) / len(x[1:]))
+    elif alternative == 'greater':
+        return sum(x[1:] >= x[0]) / len(x[1:])
+    elif alternative == 'less':
+        return sum(x[1:] <= x[0]) / len(x[1:])
+    else:
+        raise ValueError(f'alternative must be one of "two-sided", "greater", "less", got {alternative}')

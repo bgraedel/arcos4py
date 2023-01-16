@@ -11,18 +11,25 @@ import pandas as pd
 from tqdm import tqdm
 
 
-def _get_xy_change(
-    df: pd.DataFrame, object_id_name: str = 'track_id', posCols: list = ['x', 'y']
-) -> tuple[pd.DataFrame, list[str]]:
+def _np_diff(arr: np.array, axis: int):
+    return [np.cumsum(np.diff(np.insert(i, 0, i[0], axis=0), axis=0), axis=0) for i in arr]
+
+
+def _get_xy_change(X: np.ndarray, object_ids: np.ndarray) -> tuple[pd.DataFrame, list[str]]:
     """Calculate xy change for each object."""
     # get xy change for each object
-    df_new = df.copy(deep=True)
-    change_cols = [f'{i}_change' for i in posCols]
-    cumsum_cols = [f'{i}_cumsum_change' for i in posCols]
-    df_new[change_cols] = df_new.groupby(object_id_name)[posCols].diff(axis=0)
-    df_new[cumsum_cols] = df_new.groupby(object_id_name)[change_cols].cumsum()
-    df_new[cumsum_cols] = df_new[cumsum_cols].fillna(0)
-    return df_new, cumsum_cols
+    # make sure that X and object_ids are numpy arrays of the same length
+    if not isinstance(X, np.ndarray):
+        X = np.array(X)
+    if not isinstance(object_ids, np.ndarray):
+        object_ids = np.array(object_ids)
+    if X.shape[0] != object_ids.shape[0]:
+        raise ValueError('X and object_ids must have the same length.')
+
+    # calculate xy change
+    grouped_array = np.split(X, np.unique(object_ids, axis=0, return_index=True)[1][1:])
+    cumsum_group = _np_diff(grouped_array, axis=0)
+    return np.concatenate(cumsum_group)
 
 
 def shuffle_tracks(
@@ -30,41 +37,54 @@ def shuffle_tracks(
 ) -> pd.DataFrame:
     """Resample tracks by switching the first timepoint\
         positions of two tracks and then propagating the cummulative difference."""
-    df_new = df.copy(deep=True)
+
+    df_pos_cols_np = df[posCols].to_numpy()
+    factorized_oid, uniques = pd.factorize(df[object_id_name])
+
     # Set the random seed
     rng = np.random.default_rng(seed)
     # Get unique track IDs
-    track_ids = df_new[object_id_name].unique()
+    unique_track_ids = np.unique(factorized_oid)
     # Keep track of the track IDs that have been switched
     switched_tracks = set()
     # calculate relative coordinate change
-    df_new, change_cols = _get_xy_change(df_new, object_id_name, posCols)
+    xy_change = _get_xy_change(df_pos_cols_np, factorized_oid)
+
     # Iterate over the unique track IDs
-    for track_id in track_ids:
+
+    for track_id in unique_track_ids:
         # Skip the track if it has already been switched
         if track_id in switched_tracks:
             continue
+        switched_tracks.add(track_id)
         # Get a random track ID that has not been switched yet
-        available_track_ids = np.array([tid for tid in track_ids if tid not in switched_tracks and tid != track_id])
+        mask = np.isin(unique_track_ids, list(switched_tracks), invert=True)
+        # Use the boolean mask to select the track IDs that meet the criteria
+        available_track_ids = unique_track_ids[mask]
+
         if available_track_ids.size == 0:
             continue
         random_track_id = rng.choice(available_track_ids)
         # Get the rows with the current track ID
-        track_rows = df_new[df_new[object_id_name] == track_id].copy()
+        track_rows = np.argwhere(factorized_oid == track_id)
         # Get the rows with the random track ID
-        random_track_rows = df_new[df_new[object_id_name] == random_track_id].copy()
+        random_track_rows = np.argwhere(factorized_oid == random_track_id)
 
         # Switch the first timepoint positions of the two tracks
-        df_new.loc[track_rows.index, posCols] = random_track_rows[posCols].iloc[0].to_numpy()
-        df_new.loc[random_track_rows.index, posCols] = track_rows[posCols].iloc[0].to_numpy()
+        start_pos_random = df_pos_cols_np[random_track_rows[0]]
+        start_pos_track = df_pos_cols_np[track_rows[0]]
+
+        df_pos_cols_np[track_rows] = start_pos_random
+        df_pos_cols_np[random_track_rows] = start_pos_track
+
         # Add the relative position shift to the rest of the timepoints for the current track
-        df_new.loc[track_rows.index, posCols] += track_rows[change_cols].to_numpy()
+        df_pos_cols_np[track_rows] += xy_change[track_rows]
         # Add the relative position shift to the rest of the timepoints for the random track
-        df_new.loc[random_track_rows.index, posCols] += random_track_rows[change_cols].to_numpy()
-        # Add the switched track IDs to the set
-        switched_tracks.add(track_id)
+        df_pos_cols_np[random_track_rows] += xy_change[random_track_rows]
         switched_tracks.add(random_track_id)
-    return df_new
+    df_out = df.copy(deep=True)
+    df_out[posCols] = df_pos_cols_np
+    return df_out
 
 
 def shuffle_timepoints(
