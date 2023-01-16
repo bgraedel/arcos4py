@@ -18,7 +18,7 @@ def _get_xy_change(
     # get xy change for each object
     df_new = df.copy(deep=True)
     change_cols = [f'{i}_change' for i in posCols]
-    cumsum_cols = [f'{i}_cumsum_change' for i in change_cols]
+    cumsum_cols = [f'{i}_cumsum_change' for i in posCols]
     df_new[change_cols] = df_new.groupby(object_id_name)[posCols].diff(axis=0)
     df_new[cumsum_cols] = df_new.groupby(object_id_name)[change_cols].cumsum()
     df_new[cumsum_cols] = df_new[cumsum_cols].fillna(0)
@@ -88,7 +88,7 @@ def shuffle_timepoints(
         rng.shuffle(track_rows_np)
         # Set the shuffled timepoints
         df_new.loc[track_rows.index, frame_column] = track_rows_np
-    df_new.sort_values(by=[frame_column], inplace=True)
+    df_new.sort_values(by=[frame_column, objet_id_name], inplace=True)
     return df_new
 
 
@@ -157,7 +157,7 @@ def shuffle_activity_bocks_per_trajectory(
             rng.shuffle(activity_blocks)
         # Set the shuffled activity blocks
         df_new.loc[track_rows.index, meas_column] = np.concatenate(activity_blocks)
-    df_new.sort_values(by=[frame_column], inplace=True)
+    df_new.sort_values(by=[frame_column, objet_id_name], inplace=True)
     return df_new
 
 
@@ -201,11 +201,11 @@ def shift_timepoints_per_trajectory(df: pd.DataFrame, objet_id_name: str, frame_
         timepoints = np.roll(timepoints, shift)
         # Set the shifted timepoints
         df_new.loc[track_rows.index, frame_column] = timepoints
-    df_new.sort_values(by=[frame_column], inplace=True)
+    df_new.sort_values(by=[frame_column, objet_id_name], inplace=True)
     return df_new
 
 
-def resample_data(
+def resample_data(  # noqa: C901
     data: pd.DataFrame,
     posCols: list,
     frame_column: str,
@@ -237,6 +237,35 @@ def resample_data(
     Returns:
         pd.DataFrame: The bootstrapped data
     """
+    # validate the input
+    if not isinstance(data, pd.DataFrame):
+        raise TypeError('data must be a pandas.DataFrame')
+    if not isinstance(posCols, list):
+        raise TypeError('posCols must be a list')
+    if not isinstance(frame_column, str):
+        raise TypeError('frame_column must be a string')
+    if not isinstance(id_column, str):
+        raise TypeError('id_column must be a string')
+    if not isinstance(meas_column, str) and meas_column is not None:
+        raise TypeError('meas_column must be a string or None')
+    if not isinstance(method, str) and not isinstance(method, list):
+        raise TypeError('method must be a string or list')
+    if not isinstance(n, int):
+        raise TypeError('n must be a positive integer')
+    if not isinstance(seed, int):
+        raise TypeError('seed must be an integer')
+    if not isinstance(verbose, bool):
+        raise TypeError('verbose must be a boolean')
+    if not isinstance(paralell_processing, bool):
+        raise TypeError('paralell_processing must be a boolean')
+
+    if len(posCols) < 1:
+        raise ValueError('posCols must contain at least one column')
+    if n < 1:
+        raise ValueError('n must be a positive integer')
+    if seed < 0:
+        raise ValueError('seed must be a positive integer')
+
     method_dict: dict[str, Callable] = {
         'shuffle_tracks': shuffle_tracks,
         'shuffle_timepoints': shuffle_timepoints,
@@ -274,7 +303,6 @@ def resample_data(
     else:
         relevant_columns = posCols + [frame_column, id_column]
 
-    # Check if the columns are in the data
     for i in relevant_columns:
         if i not in data.columns:
             raise ValueError(f'{i} not in df.columns')
