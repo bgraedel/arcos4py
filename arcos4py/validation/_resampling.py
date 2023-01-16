@@ -373,7 +373,7 @@ def _apply_resampling(
     data: pd.DataFrame,
     methods: list[str],
     resampling_func_list: list[Callable],
-    seed_list: list[int],
+    seed_list: np.ndarray[int],
     function_args: dict[str, tuple],
 ):
     """Resamples data in order to perform bootstrapping analysis.
