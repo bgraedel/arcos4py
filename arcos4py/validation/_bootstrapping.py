@@ -7,12 +7,12 @@ import pandas as pd
 from tqdm import tqdm
 
 from arcos4py import ARCOS
-from arcos4py.tools import calcCollevStats
+from arcos4py.tools import calcCollevStats, filterCollev
 
 from ._resampling import resample_data
 
 
-def bootstrap_arcos(
+def permutation_arcos(
     df: pd.DataFrame,
     posCols: list,
     frame_column: str,
@@ -29,6 +29,8 @@ def bootstrap_arcos(
     epsPrev: float | None = None,
     minClsz: int = 1,
     nPrev: int = 1,
+    min_duration: int = 1,
+    min_size: int = 1,
     stats_metric: str | list[str] = ["total_size", "duration"],
     pval_alternative: str = "greater",
     finite_correction: bool = True,
@@ -60,6 +62,8 @@ def bootstrap_arcos(
         epsPrev: Parameter for linking tracks. If None, eps is used.
         minClsz: Minimum cluster size.
         nPrev: Number of previous frames to consider for linking.
+        min_duration: Minimum duration of a track.
+        min_size: Minimum size of a track.
         stats_metric: Metric to calculate. Can be "duration", "total_size", "min_size", "max_size" or a list of metrics.
             Default is ["duration", "total_size"].
         pval_alternative: Alternative hypothesis for the p-value calculation. Can be "two-sided", "less" or "greater".
@@ -126,28 +130,34 @@ def bootstrap_arcos(
         epsPrev=epsPrev,
         minClsz=minClsz,
         nPrev=nPrev,
+        min_duration=min_duration,
+        min_size=min_size,
         stats_metric=stats_metric,
         show_progress=show_progress,
         paralell_processing=paralell_processing,
         clid_name=clid_name,
         iterations=iterations,
     )
-
-    pval = stats_df_mean[stats_metric].agg(lambda x: _p_val_finite_sampling(x, pval_alternative))
+    if finite_correction:
+        pval = stats_df_mean[stats_metric].agg(lambda x: _p_val_finite_sampling(x, pval_alternative))
+    else:
+        pval = stats_df_mean[stats_metric].agg(lambda x: _p_val_infinite_sampling(x, pval_alternative))
     pval.name = 'p_value'
     df_p = pd.DataFrame(pval)
 
     if plot:
         fig, axis = plt.subplots(1, 2, sharey=True)
         for ax, stats_col in zip(axis, stats_df_mean.columns[1:]):
-            ax.hist(stats_df_mean[stats_col], bins=len(stats_df_mean), alpha=0.5)
+            ax.hist(stats_df_mean[stats_col], alpha=0.5)
             ax.set_title(stats_col)
             ax.vlines(stats_df_mean[stats_col].iloc[0], ymin=0, ymax=ax.get_ylim()[1], color='red', ls='--')
             ax.set_xlabel('Value')
             ax.set_ylabel('Count')
+            x_pos = ax.get_xlim()[0] + ((ax.get_xlim()[1] - ax.get_xlim()[0]) * 0.8)
+            y_pos = ax.get_ylim()[0] + ((ax.get_ylim()[1] - ax.get_ylim()[0]) * 0.8)
             ax.text(
-                ax.get_xlim()[1] * 0.8,
-                ax.get_ylim()[1] * 0.9,
+                x_pos,
+                y_pos,
                 f'p-value: \n {df_p.loc[stats_col, "p_value"]:.3f}',
                 ha='center',
                 va='center',
@@ -178,6 +188,8 @@ def _bootstrap_statistic(
     epsPrev: float | None = None,
     minClsz: int = 1,
     nPrev: int = 1,
+    min_duration: int = 1,
+    min_size: int = 1,
     stats_metric: list[str] = ['duration', 'total_size'],
     show_progress: bool = True,
     paralell_processing: bool = True,
@@ -205,6 +217,8 @@ def _bootstrap_statistic(
                 epsPrev=epsPrev,
                 minClsz=minClsz,
                 nPrev=nPrev,
+                min_dur=min_duration,
+                min_size=min_size,
                 clid_name=clid_name,
             )
             for i_iter in tqdm(iterations, disable=not show_progress)
@@ -229,6 +243,8 @@ def _bootstrap_statistic(
                 epsPrev=epsPrev,
                 minClsz=minClsz,
                 nPrev=nPrev,
+                min_dur=min_duration,
+                min_size=min_size,
                 clid_name=clid_name,
             )
             stats_df_list.append(stats_df)
@@ -262,6 +278,8 @@ def _apply_arcos(
     epsPrev: float | None,
     minClsz: int,
     nPrev: int,
+    min_dur: int,
+    min_size: int,
     clid_name: str,
 ) -> pd.DataFrame:
     df_i_iter = df_resampled.loc[df_resampled['iteration'] == i_iter]
@@ -279,31 +297,51 @@ def _apply_arcos(
     )
     df_arcos = arcos_instance.trackCollev(eps=eps, epsPrev=epsPrev, minClsz=minClsz, nPrev=nPrev)
 
+    df_arcos_filtered = filterCollev(
+        data=df_arcos, frame_column=frame_column, collid_column=clid_name, obj_id_column=id_column
+    ).filter(min_dur, min_size)
+
     if i_iter == 0 and df_arcos.empty:
         raise ValueError('No events detected in control, consider changing parameters')
 
-    stats_df = calcCollevStats().calculate(df_arcos, frame_column, clid_name, id_column, posCols)
+    stats_df = calcCollevStats().calculate(df_arcos_filtered, frame_column, clid_name, id_column, posCols)
     stats_df['bootstrap_iteration'] = i_iter
     return stats_df
 
 
 def _p_val_finite_sampling(x: pd.DataFrame, alternative: str = 'greater'):
+    orig = x[0]
+    df_test = x[1:]
     if alternative == 'two-sided':
-        return 2 * min(1 + sum(x[1:] >= x[0]) / len(x[1:]), sum(x[1:] <= x[0]) / len(x[1:]))
+        return 2 * min(
+            (1 + sum(df_test >= orig)) / (len(df_test) + 1),
+            (1 + sum(df_test <= orig)) / (len(df_test) + 1),
+        )
     elif alternative == 'greater':
-        return sum(1 + x[1:] >= x[0]) / (len(x[1:] + 1))
+        return (1 + sum(df_test >= orig)) / (len(df_test) + 1)
     elif alternative == 'less':
-        return sum(1 + x[1:] <= x[0]) / (len(x[1:]) + 1)
+        return (1 + sum(df_test <= orig)) / (len(df_test) + 1)
     else:
         raise ValueError(f'alternative must be one of "two-sided", "greater", "less", got {alternative}')
 
+    # calculate the p value for a two sided test
+    # this is the same as the p value for a one sided test
+    # but with the null hypothesis being that the mean is not equal to the test mean
+    # this is the same as the p value for a one sided test
+    # but with the null hypothesis being that the mean is not equal to the test mean
+
 
 def _p_val_infinite_sampling(x: pd.DataFrame, alternative: str = 'greater'):
+    orig = x[0]
+    df_test = x[1:]
     if alternative == 'two-sided':
-        return 2 * min(sum(x[1:] >= x[0]) / len(x[1:]), sum(x[1:] <= x[0]) / len(x[1:]))
+        return 2 * min(
+            sum(df_test >= orig) / len(df_test),
+            sum(df_test <= orig) / len(df_test),
+        )
     elif alternative == 'greater':
-        return sum(x[1:] >= x[0]) / len(x[1:])
+        return sum(df_test >= orig) / len(df_test)
     elif alternative == 'less':
-        return sum(x[1:] <= x[0]) / len(x[1:])
+        return sum(df_test <= orig) / len(df_test)
     else:
         raise ValueError(f'alternative must be one of "two-sided", "greater", "less", got {alternative}')

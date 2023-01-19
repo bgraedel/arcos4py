@@ -34,10 +34,12 @@ def test__get_xy_change():
 
 def test_shuffle_tracks():
     # Create test dataframe
-    test_df = pd.DataFrame({'track_id': [1, 1, 1, 2, 2, 2], 'x': [1, 2, 3, 4, 6, 8], 'y': [2, 3, 4, 5, 7, 9]})
+    test_df = pd.DataFrame(
+        {'t': [1, 2, 3, 1, 2, 3], 'track_id': [1, 1, 1, 2, 2, 2], 'x': [1, 2, 3, 4, 6, 8], 'y': [2, 3, 4, 5, 7, 9]}
+    )
 
     # Test the function with a specific seed
-    df_new = shuffle_tracks(test_df, seed=42)
+    df_new = shuffle_tracks(test_df, object_id_name='track_id', frame_column='t', seed=42)
 
     # Assert that the output is as expected
     assert df_new['track_id'].to_list() == [1, 1, 1, 2, 2, 2]
@@ -53,15 +55,15 @@ def test_shuffle_tracks():
 def test_shuffle_timepoints():
     # Create test dataframe
     test_df = pd.DataFrame(
-        {'track_id': [1, 2, 1, 2, 1, 2], 'time': [1, 1, 2, 2, 3, 3], 'x': [1, 2, 3, 4, 5, 6], 'y': [2, 3, 4, 5, 6, 7]}
+        {'track_id': [1, 1, 1, 2, 2, 2], 'time': [1, 2, 3, 1, 2, 3], 'x': [1, 2, 3, 4, 5, 6], 'y': [2, 3, 4, 5, 6, 7]}
     )
 
     # Test the function with a specific seed
     df_new = shuffle_timepoints(test_df, seed=42)
 
     # Assert that the output is as expected
-    assert df_new['track_id'].to_list() == [1, 2, 1, 2, 1, 2]
-    assert df_new['time'].to_list() == [1, 1, 2, 2, 3, 3]
+    assert df_new['track_id'].to_list() == [1, 1, 1, 2, 2, 2]
+    assert df_new['time'].to_list() == [1, 2, 3, 1, 2, 3]
     assert df_new['x'].to_list() != [1, 2, 3, 4, 5, 6]
     assert df_new['y'].to_list() != [2, 3, 4, 5, 6, 7]
 
@@ -140,8 +142,8 @@ def test_shift_timepoints_per_trajectory():
     # Create test dataframe
     test_df = pd.DataFrame(
         {
-            'track_id': [1, 2, 1, 2, 1, 2],
-            'time': [1, 1, 2, 2, 3, 3],
+            'track_id': [1, 1, 1, 2, 2, 2],
+            'time': [1, 2, 3, 1, 2, 3],
             'x': [1, 2, 3, 4, 5, 6],
             'y': [7, 8, 9, 10, 11, 12],
         }
@@ -150,8 +152,8 @@ def test_shift_timepoints_per_trajectory():
     df_new = shift_timepoints_per_trajectory(test_df, 'track_id', 'time', seed=42)
 
     # Assert that the output is as expected
-    np.testing.assert_array_equal(df_new['track_id'].values, [1, 2, 1, 2, 1, 2])
-    np.testing.assert_array_equal(df_new['time'].values, [1, 1, 2, 2, 3, 3])
+    np.testing.assert_array_equal(df_new['track_id'].values, [1, 1, 1, 2, 2, 2])
+    np.testing.assert_array_equal(df_new['time'].values, [1, 2, 3, 1, 2, 3])
     with np.testing.assert_raises(AssertionError):
         np.testing.assert_array_equal(df_new['x'].values, [1, 2, 3, 4, 5, 6])
         np.testing.assert_array_equal(df_new['y'].values, [7, 8, 9, 10, 11, 12])

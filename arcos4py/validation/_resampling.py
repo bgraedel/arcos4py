@@ -1,17 +1,19 @@
 """Tools for resampling data and bootstrapping."""
-
 from __future__ import annotations
 
 import warnings
 from itertools import zip_longest
-from typing import Callable, Union
+from typing import TYPE_CHECKING, Callable, Union
 
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
+if TYPE_CHECKING:
+    import numpy.typing as npt
 
-def _np_diff(arr: np.array, axis: int):
+
+def _np_diff(arr: list[np.ndarray], axis: int):
     return [np.cumsum(np.diff(np.insert(i, 0, i[0], axis=0), axis=0), axis=0) for i in arr]
 
 
@@ -26,6 +28,10 @@ def _get_xy_change(X: np.ndarray, object_ids: np.ndarray) -> tuple[pd.DataFrame,
     if X.shape[0] != object_ids.shape[0]:
         raise ValueError('X and object_ids must have the same length.')
 
+    # check if object_ids are sorted
+    if not np.all(object_ids[:-1] <= object_ids[1:]):
+        raise ValueError('object_ids must be sorted.')
+
     # calculate xy change
     grouped_array = np.split(X, np.unique(object_ids, axis=0, return_index=True)[1][1:])
     cumsum_group = _np_diff(grouped_array, axis=0)
@@ -33,11 +39,11 @@ def _get_xy_change(X: np.ndarray, object_ids: np.ndarray) -> tuple[pd.DataFrame,
 
 
 def shuffle_tracks(
-    df: pd.DataFrame, object_id_name: str = 'track_id', posCols: list = ['x', 'y'], seed=42
+    df: pd.DataFrame, object_id_name: str = 'track_id', posCols: list = ['x', 'y'], frame_column='t', seed=42
 ) -> pd.DataFrame:
     """Resample tracks by switching the first timepoint\
         positions of two tracks and then propagating the cummulative difference."""
-
+    df.sort_values([object_id_name, frame_column], inplace=True)  # needs to be sorted for _get_xy_change to work
     df_pos_cols_np = df[posCols].to_numpy()
     factorized_oid, uniques = pd.factorize(df[object_id_name])
 
@@ -67,12 +73,14 @@ def shuffle_tracks(
         random_track_id = rng.choice(available_track_ids)
         # Get the rows with the current track ID
         track_rows = np.argwhere(factorized_oid == track_id)
+        track_rows = track_rows.flatten()
         # Get the rows with the random track ID
         random_track_rows = np.argwhere(factorized_oid == random_track_id)
+        random_track_rows = random_track_rows.flatten()
 
         # Switch the first timepoint positions of the two tracks
-        start_pos_random = df_pos_cols_np[random_track_rows[0]]
-        start_pos_track = df_pos_cols_np[track_rows[0]]
+        start_pos_random = df_pos_cols_np[random_track_rows[0]].copy()
+        start_pos_track = df_pos_cols_np[track_rows[0]].copy()
 
         df_pos_cols_np[track_rows] = start_pos_random
         df_pos_cols_np[random_track_rows] = start_pos_track
@@ -98,17 +106,23 @@ def shuffle_timepoints(
     # Set the random seed
     rng = np.random.default_rng(seed)
     # Get unique track IDs
-    track_ids = df_new[objet_id_name].unique()
+    track_ids = df_new[objet_id_name].factorize()[0]
+    unique_track_ids = np.unique(track_ids)
+
+    # get timepoints
+    df_t_np = df_new[frame_column].to_numpy()
     # Iterate over the unique track IDs
-    for track_id in track_ids:
+    for track_id in unique_track_ids:
         # Get the rows with the current track ID
-        track_rows = df_new[df_new[objet_id_name] == track_id].copy()
+        track_rows = np.argwhere(track_ids == track_id)
+        track_rows = track_rows.flatten()
+        df_t_shuffle = df_t_np[track_rows]
         # Shuffle the timepoints
-        track_rows_np = track_rows[frame_column].to_numpy()
-        rng.shuffle(track_rows_np)
-        # Set the shuffled timepoints
-        df_new.loc[track_rows.index, frame_column] = track_rows_np
-    df_new.sort_values(by=[frame_column, objet_id_name], inplace=True)
+        rng.shuffle(df_t_shuffle)
+        df_t_np[track_rows] = df_t_shuffle
+
+    df_new[frame_column] = df_t_np
+    df_new.sort_values(by=[objet_id_name, frame_column], inplace=True)
     return df_new
 
 
@@ -181,47 +195,60 @@ def shuffle_activity_bocks_per_trajectory(
     return df_new
 
 
-def shuffle_coordinates_per_timepoint(df: pd.DataFrame, posCols: list[str], frame_column: str, seed=42) -> pd.DataFrame:
-    """Resample data by shuffling the coordinates of a trajectory on a per timepoint basis."""
+def shuffle_coordinates_per_timepoint(
+    df: pd.DataFrame,
+    posCols: list = ['x', 'y'],
+    frame_column: str = 'time',
+    seed=42,
+) -> pd.DataFrame:
+    """Resample data by shuffling the coordinates of a per timepoint basis."""
     df_new = df.copy(deep=True)
-    # Get unique timepoints
-    timepoints = df_new[frame_column].unique()
-
     # Set the random seed
     rng = np.random.default_rng(seed)
-    # Iterate over the unique timepoints
-    for timepoint in timepoints:
-        # Get the rows with the current timepoint
-        timepoint_rows = df_new[df_new[frame_column] == timepoint].copy()
+    # Get unique timepoints
+    timepoints = df_new[frame_column].to_numpy()
+    unique_timepoints = np.unique(timepoints)
+
+    # get coordinates
+    df_tp_col_np = df_new[posCols].to_numpy()
+    # Iterate over the unique track IDs
+    for tp in unique_timepoints:
+        # Get the rows with the current track ID
+        tp_rows = np.argwhere(timepoints == tp)
+        tp_rows = tp_rows.flatten()
+        df_pos_shuffle = df_tp_col_np[tp_rows]
         # Shuffle the coordinates
-        timepoint_rows_np = timepoint_rows[posCols].to_numpy()
-        rng.shuffle(timepoint_rows_np)
-        # Set the shuffled coordinates
-        df_new.loc[timepoint_rows.index, posCols] = timepoint_rows_np
+        rng.shuffle(df_pos_shuffle)
+        df_tp_col_np[tp_rows] = df_pos_shuffle
+
+    df_new[posCols] = df_tp_col_np
     return df_new
 
 
 def shift_timepoints_per_trajectory(df: pd.DataFrame, objet_id_name: str, frame_column: str, seed=42) -> pd.DataFrame:
     """Resample data by shifting the timepoints a random ammount of a trajectory on a per trajectory basis."""
     df_new = df.copy(deep=True)
-    # Get unique track IDs
-    track_ids = df_new[objet_id_name].unique()
-
     # Set the random seed
     rng = np.random.default_rng(seed)
+    # Get unique track IDs
+    track_ids = df_new[objet_id_name].factorize()[0]
+    unique_track_ids = np.unique(track_ids)
+
+    # get timepoints
+    df_t_np = df_new[frame_column].to_numpy()
     # Iterate over the unique track IDs
-    for track_id in track_ids:
+    for track_id in unique_track_ids:
         # Get the rows with the current track ID
-        track_rows = df_new[df_new[objet_id_name] == track_id].copy()
-        # Get the timepoints
-        timepoints = track_rows[frame_column].to_numpy()
+        track_rows = np.argwhere(track_ids == track_id)
+        track_rows = track_rows.flatten()
+        timepoints = df_t_np[track_rows]
         # Get the shift
         shift = rng.integers(-timepoints.size, timepoints.size)
         # Shift the timepoints
         timepoints = np.roll(timepoints, shift)
-        # Set the shifted timepoints
-        df_new.loc[track_rows.index, frame_column] = timepoints
-    df_new.sort_values(by=[frame_column, objet_id_name], inplace=True)
+        df_t_np[track_rows] = timepoints
+
+    df_new.sort_values(by=[objet_id_name, frame_column], inplace=True)
     return df_new
 
 
@@ -295,7 +322,7 @@ def resample_data(  # noqa: C901
     }
 
     function_args: dict[str, tuple] = {
-        'shuffle_tracks': (id_column, posCols),
+        'shuffle_tracks': (id_column, posCols, frame_column),
         'shuffle_timepoints': (id_column, frame_column),
         'shift_timepoints': (id_column, frame_column),
         'shuffle_binary_blocks': (id_column, frame_column, meas_column),
@@ -336,10 +363,8 @@ def resample_data(  # noqa: C901
         warnings.warn(f'NaN values in {na_cols}, default behaviour is to drop these rows')
         data.dropna(subset=na_cols, inplace=True)
 
-    # Check if data is sorted
-    if not data[frame_column].is_monotonic_increasing:
-        # Sort the data
-        data = data.sort_values(frame_column)
+    # Sort the data
+    data.sort_values([id_column, frame_column], inplace=True)
 
     rng = np.random.default_rng(seed)
     # create a list of random numbers between 0 and 1000000
@@ -393,7 +418,7 @@ def _apply_resampling(
     data: pd.DataFrame,
     methods: list[str],
     resampling_func_list: list[Callable],
-    seed_list: np.ndarray[int],
+    seed_list: npt.NDArray[np.int64],
     function_args: dict[str, tuple],
 ):
     """Resamples data in order to perform bootstrapping analysis.
