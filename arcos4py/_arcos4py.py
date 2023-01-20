@@ -191,7 +191,7 @@ class ARCOS:
         Returns:
             DataFrame with detected collective events across time.
         """
-        self.data = detectCollev(
+        data_events = detectCollev(
             self.data,
             eps=eps,
             epsPrev=epsPrev,
@@ -204,4 +204,4 @@ class ARCOS:
             clid_column=self.clid_column,
         ).run()
 
-        return self.data
+        return data_events

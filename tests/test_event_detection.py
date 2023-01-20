@@ -261,3 +261,29 @@ def test_4_objects_in_2_events():
     out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=['x'])
     assert_frame_equal(out, df_true)
+
+
+def test_repeat_detection():
+    df_in = pd.read_csv('tests/testdata/2objMergeSplitCross_in.csv')
+    df_true = pd.read_csv('tests/testdata/2objMergeSplitCross_res.csv')
+    pos = ['pos']
+    ts = ARCOS(df_in, posCols=pos, frame_column='t', id_column='id', measurement_column=None, clid_column='collid')
+    out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=1)
+    out = out.drop(columns=pos)
+    assert_frame_equal(out, df_true)
+    out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=1)
+    out = out.drop(columns=pos)
+    assert_frame_equal(out, df_true)
+
+
+def test_repeat_with_different_eps():
+    df_in = pd.read_csv('tests/testdata/2objMergeSplitCross_in.csv')
+    df_true = pd.read_csv('tests/testdata/2objMergeSplitCross_res.csv')
+    pos = ['pos']
+    ts = ARCOS(df_in, posCols=pos, frame_column='t', id_column='id', measurement_column=None, clid_column='collid')
+    out = ts.trackCollev(eps=0.01, epsPrev=1, minClsz=1, nPrev=1)
+    out = out.drop(columns=pos)
+    assert_frame_equal(out, df_true)
+    out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=1)
+    out = out.drop(columns=pos)
+    assert_frame_equal(out, df_true)

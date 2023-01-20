@@ -78,7 +78,7 @@ class detectCollev:
             clid_column (str): Indicating the column name containing the ids of collective events.
         """
         # assign some variables passed in as arguments to the object
-        self.input_data = input_data.copy()
+        self.input_data = input_data
         self.eps = eps
         if epsPrev:
             self.epsPrev = epsPrev
@@ -325,8 +325,15 @@ class detectCollev:
         columns.append(self.clid_column)
         return columns
 
-    def run(self) -> pd.DataFrame:
+    def run(self, copy=True) -> pd.DataFrame:
         """Method to execute the different steps necessary for tracking.
+
+        Arguments:
+            copy (bool): If True, the input data is copied before processing.
+                If False, the input data is modified in place. Default is True.
+
+        Returns:
+            DataFrame: Dataframe with tracked collective events is returned.
 
         1. Selects columns.
         2. filters data on binary column > 1.
@@ -334,12 +341,13 @@ class detectCollev:
         4. Makes cluster ids unique across frames.
         5. Tracks collective events i.e. links cluster ids across frames.
         6. Creates final DataFrame.
-
-        Returns:
-            DataFrame: Dataframe with tracked collective events is returned.
         """
+        if copy:
+            x = self.input_data.copy()
+        else:
+            x = self.input_data
         filtered_cols = self._select_necessary_columns(
-            self.input_data,
+            x,
             self.frame_column,
             self.id_column,
             self.pos_cols_inputdata,
@@ -361,10 +369,10 @@ class detectCollev:
         tracked_events = self._link_clusters_between_frames(db_data, self.frame_column, self.clid_column)
         return_columns = self._get_export_columns()
         tracked_events = tracked_events[return_columns]
-        if self.clid_column in self.input_data.columns:
-            df_to_merge = self.input_data.drop(columns=[self.clid_column])
+        if self.clid_column in x.columns:
+            df_to_merge = x.drop(columns=[self.clid_column])
         else:
-            df_to_merge = self.input_data
+            df_to_merge = x
         tracked_events = tracked_events.merge(df_to_merge, how="left")
         tracked_events = tracked_events
         return tracked_events

@@ -15,6 +15,9 @@ If set to 'None', as default, the same value as for eps is used.
 - Functions to perform resampling and bootstrap analysis.
 - Unittests for added functionallity.
 
+### Fixed
+- Bug where trackCollev would overwrite the inputdata in the ARCOS object, preventing repeat tracking ob collective events.
+
 ## [0.1.5] - 2022-08-23
 ### Changed
 - Changed running median for global smoothing of trajectories from scipy running_median
