@@ -12,7 +12,7 @@ from arcos4py.tools import calcCollevStats, filterCollev
 from ._resampling import resample_data
 
 
-def permutation_arcos(
+def bootstrap_arcos(
     df: pd.DataFrame,
     posCols: list,
     frame_column: str,
@@ -66,7 +66,7 @@ def permutation_arcos(
         min_size: Minimum size of a track.
         stats_metric: Metric to calculate. Can be "duration", "total_size", "min_size", "max_size" or a list of metrics.
             Default is ["duration", "total_size"].
-        pval_alternative: Alternative hypothesis for the p-value calculation. Can be "two-sided", "less" or "greater".
+        pval_alternative: Alternative hypothesis for the p-value calculation. Can be "less" or "greater".
         finite_correction: Correct p-values for finite sampling. Default is True.
         n: Number of bootstraps.
         seed: Seed for the random number generator.
@@ -114,7 +114,7 @@ def permutation_arcos(
 
     print(f'Running ARCOS and calculating "{stats_metric}"...')
 
-    stats_df, stats_df_mean = _bootstrap_statistic(
+    stats_df, stats_df_mean = calculate_arcos_stats(
         df_resampled=df_resampled,
         posCols=posCols,
         frame_column=frame_column,
@@ -171,7 +171,7 @@ def permutation_arcos(
     return stats_df, df_p
 
 
-def _bootstrap_statistic(
+def calculate_arcos_stats(
     df_resampled: pd.DataFrame,
     iterations: list[int],
     posCols: list,
@@ -195,7 +195,36 @@ def _bootstrap_statistic(
     paralell_processing: bool = True,
     clid_name: str = 'clid',
 ):
-    """Calculate the bootstrapped statistics."""
+    """Calculate the bootstrapped statistics.
+
+    Arguments:
+        df_resampled (DataFrame): Dataframe with resampled data.
+        iterations (list[int]): List of iteration names, or range.
+        posCols (list): List of position columns..
+        frame_column (str): Name of the frame column.
+        id_column (str): Name of the id column.
+        meas_column (str): Name of the measurement column.
+        smoothK (int, optional): Smoothing kernel size for local detrending. Defaults to 3.
+        biasK (int, optional): Bias kernel size for large scale detrending (used with biasMet='runmed'). Defaults to 51.
+        peakThr (float, optional): Peak threshold used for rescaling (used with biasMet='runmed'). Defaults to 0.2.
+        binThr (float, optional): Threshold for binarizing measurements after detrending. Defaults to 0.1.
+        polyDeg (int, optional): Polynomial degree used for detrending (used with biasMet='lm'). Defaults to 1.
+        biasMet (str, optional): Bias method, can be 'none', 'runmed', 'lm'. Defaults to "runmed".
+        eps (float, optional): Epsilon used for culstering active entities. Defaults to 2.
+        epsPrev (float, optional): Epsilon used for linking together culsters across time. Defaults to None.
+        minClsz (int, optional): Minimum cluster size. Defaults to 1.
+        nPrev (int, optional): Number of previous frames to consider when tracking clusters. Defaults to 1.
+        min_duration (int, optional): Minimum duration of detected event. Defaults to 1.
+        min_size (int, optional): Minimum size, minimum size of detected event. Defaults to 1.
+        stats_metric (list[str], optional): List of metrics to calculate. Defaults to ['duration', 'total_size'].
+        show_progress (bool, optional): Show progress bar. Defaults to True.
+        paralell_processing (bool, optional): Use paralell processing, uses the joblib package. Defaults to True.
+        clid_name (str, optional): Name of the cluster id column. Defaults to 'clid'.
+
+    Returns:
+        DataFrame: Dataframe with the bootstrapped statistics.
+        DataFrame: Dataframe with mean statistics.
+    """
     if paralell_processing:
         from joblib import Parallel, delayed
 
@@ -312,36 +341,20 @@ def _apply_arcos(
 def _p_val_finite_sampling(x: pd.DataFrame, alternative: str = 'greater'):
     orig = x[0]
     df_test = x[1:]
-    if alternative == 'two-sided':
-        return 2 * min(
-            (1 + sum(df_test >= orig)) / (len(df_test) + 1),
-            (1 + sum(df_test <= orig)) / (len(df_test) + 1),
-        )
-    elif alternative == 'greater':
+    if alternative == 'greater':
         return (1 + sum(df_test >= orig)) / (len(df_test) + 1)
     elif alternative == 'less':
         return (1 + sum(df_test <= orig)) / (len(df_test) + 1)
     else:
-        raise ValueError(f'alternative must be one of "two-sided", "greater", "less", got {alternative}')
-
-    # calculate the p value for a two sided test
-    # this is the same as the p value for a one sided test
-    # but with the null hypothesis being that the mean is not equal to the test mean
-    # this is the same as the p value for a one sided test
-    # but with the null hypothesis being that the mean is not equal to the test mean
+        raise ValueError(f'alternative must be one of "greater", "less", got {alternative}')
 
 
 def _p_val_infinite_sampling(x: pd.DataFrame, alternative: str = 'greater'):
     orig = x[0]
     df_test = x[1:]
-    if alternative == 'two-sided':
-        return 2 * min(
-            sum(df_test >= orig) / len(df_test),
-            sum(df_test <= orig) / len(df_test),
-        )
-    elif alternative == 'greater':
+    if alternative == 'greater':
         return sum(df_test >= orig) / len(df_test)
     elif alternative == 'less':
         return sum(df_test <= orig) / len(df_test)
     else:
-        raise ValueError(f'alternative must be one of "two-sided", "greater", "less", got {alternative}')
+        raise ValueError(f'alternative must be one of "greater", "less", got {alternative}')

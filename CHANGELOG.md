@@ -12,11 +12,11 @@ If set to 'None', as default, the same value as for eps is used.
 
 ### Added
 - New function to estimate_eps (import from tools) to estimate the eps paramter used for DBSCAN clustering based on the nearest neighbour distribution. Three methods are supported, either mean of NN, median of NN or kneepoint of the sorted NN distribution.
-- Functions to perform resampling and bootstrap analysis.
+- Functions to perform resampling and subsequent validation of arcos output.
 - Unittests for added functionallity.
 
 ### Fixed
-- Bug where trackCollev would overwrite the inputdata in the ARCOS object, preventing repeat tracking ob collective events.
+- Bug where trackCollev would overwrite the inputdata in the ARCOS object, preventing repeat tracking of collective events.
 
 ## [0.1.5] - 2022-08-23
 ### Changed
