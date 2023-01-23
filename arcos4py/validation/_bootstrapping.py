@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from warnings import warn
+
 import matplotlib.pyplot as plt
 import pandas as pd
+import seaborn as sns
 from tqdm import tqdm
 
 from arcos4py import ARCOS
@@ -36,6 +39,8 @@ def bootstrap_arcos(
     finite_correction: bool = True,
     n: int = 100,
     seed: int = 42,
+    allow_duplicates: bool = False,
+    max_tries: int = 100,
     show_progress: bool = True,
     verbose: bool = False,
     paralell_processing: bool = True,
@@ -70,6 +75,9 @@ def bootstrap_arcos(
         finite_correction: Correct p-values for finite sampling. Default is True.
         n: Number of bootstraps.
         seed: Seed for the random number generator.
+        allow_duplicates: If False, resampling will check if the resampled data contains duplicates.
+            If True, duplicates will be allowed.
+        max_tries: Maximum number of tries to resample data without duplicates.
         show_progress: Show a progress bar.
         verbose: Print additional information.
 
@@ -88,6 +96,9 @@ def bootstrap_arcos(
         ]:
             raise ValueError(f"Invalid metric: {stats_metric}")
 
+    if pval_alternative not in ["less", "greater"]:
+        raise ValueError(f"Invalid alternative hypothesis: {pval_alternative}")
+
     clid_name = 'clid'
 
     if isinstance(method, str):
@@ -105,6 +116,8 @@ def bootstrap_arcos(
         method=method,
         n=n,
         seed=seed,
+        allow_duplicates=allow_duplicates,
+        max_tries=max_tries,
         show_progress=show_progress,
         verbose=verbose,
         paralell_processing=paralell_processing,
@@ -138,37 +151,74 @@ def bootstrap_arcos(
         clid_name=clid_name,
         iterations=iterations,
     )
+    df_p = calculate_pvalue(stats_df_mean, stats_metric, pval_alternative, finite_correction, plot)
+    return stats_df, df_p
+
+
+def calculate_pvalue(
+    stats_df_mean: pd.DataFrame,
+    stats_metric: str | list[str],
+    pval_alternative: str,
+    finite_correction: bool,
+    plot: bool,
+    **plot_kwargs,
+):
+    """Calculates the p-value with the given alternative hypothesis.
+
+    Arguments:
+        stats_df_mean (DataFrame): DataFrame containing the bootstrapped data.
+        stats_metric (str | list[str]): Metric to calculate.
+            Can be "duration", "total_size", "min_size", "max_size" or a list of metrics.
+            Default is ["duration", "total_size"].
+        pval_alternative (str): Alternative hypothesis for the p-value calculation.
+            Can be "less", "greater" or both which will return p values for both alternatives.
+        finite_correction (bool): Correct p-values for finite sampling. Default is True.
+        plot (bool): Plot the distribution of the bootstrapped data.
+
+    Returns:
+        DataFrame containing the p-values.
+    """
     if finite_correction:
         pval = stats_df_mean[stats_metric].agg(lambda x: _p_val_finite_sampling(x, pval_alternative))
     else:
-        pval = stats_df_mean[stats_metric].agg(lambda x: _p_val_infinite_sampling(x, pval_alternative))
+        pval = stats_df_mean[['total_size', 'duration']].agg(lambda x: _p_val_infinite_sampling(x, pval_alternative))
     pval.name = 'p_value'
-    df_p = pd.DataFrame(pval)
+
+    if isinstance(stats_metric, list):
+        _stats_metric = stats_metric
+    else:
+        _stats_metric = [stats_metric]
 
     if plot:
-        fig, axis = plt.subplots(1, 2, sharey=True)
-        for ax, stats_col in zip(axis, stats_df_mean.columns[1:]):
-            ax.hist(stats_df_mean[stats_col], alpha=0.5)
+        fig, axis = plt.subplots(1, len(_stats_metric))
+        try:
+            iter(axis)
+        except TypeError:
+            axis = [axis]
+        for ax, stats_col in zip(axis, _stats_metric):
+            # sns.kdeplot(stats_df_mean[stats_col], ax=ax, shade=True, sharey=True)
+            sns.histplot(stats_df_mean[stats_col], ax=ax, kde=True, stat='density', common_norm=False, **plot_kwargs)
+            # ax.hist(stats_df_mean[stats_col], alpha=0.5)
             ax.set_title(stats_col)
             ax.vlines(stats_df_mean[stats_col].iloc[0], ymin=0, ymax=ax.get_ylim()[1], color='red', ls='--')
             ax.set_xlabel('Value')
-            ax.set_ylabel('Count')
+            if len(axis) > 1 and ax.is_first_col():
+                ax.set_ylabel('Density')
+            else:
+                ax.set_ylabel('')
             x_pos = ax.get_xlim()[0] + ((ax.get_xlim()[1] - ax.get_xlim()[0]) * 0.8)
             y_pos = ax.get_ylim()[0] + ((ax.get_ylim()[1] - ax.get_ylim()[0]) * 0.8)
             ax.text(
                 x_pos,
                 y_pos,
-                f'p-value: \n {df_p.loc[stats_col, "p_value"]:.3f}',
+                f'p-value: \n {pval.loc[:,stats_col].round(3).to_string()}',
                 ha='center',
                 va='center',
                 color='red',
             )
         fig.suptitle('Bootstrapped metrics')
         plt.show()
-    # p_val = lambda x: (sum(x[1:] > x[0])) / (len(x[1:]))
-
-    # p_value = sum(means > mean_0) / len(means)
-    return stats_df, df_p
+    return pval
 
 
 def calculate_arcos_stats(
@@ -338,23 +388,39 @@ def _apply_arcos(
     return stats_df
 
 
-def _p_val_finite_sampling(x: pd.DataFrame, alternative: str = 'greater'):
+def _p_val_finite_sampling(x: pd.DataFrame, alternative: str = 'greater') -> pd.Series:
     orig = x[0]
     df_test = x[1:]
     if alternative == 'greater':
-        return (1 + sum(df_test >= orig)) / (len(df_test) + 1)
+        return pd.Series({'>=': (1 + sum(df_test >= orig)) / (len(df_test) + 1)})
     elif alternative == 'less':
-        return (1 + sum(df_test <= orig)) / (len(df_test) + 1)
+        return pd.Series({'<=': (1 + sum(df_test <= orig)) / (len(df_test) + 1)})
+    elif alternative == 'both':
+        warn(
+            'Combined p-values will not add up to 1 due to the fact that greater\
+                and equal and less and equal are not mutually exclusive.'
+        )
+        return pd.Series(
+            {
+                '>=': (1 + sum(df_test >= orig)) / (len(df_test) + 1),
+                '<=': (1 + sum(df_test <= orig)) / (len(df_test) + 1),
+            }
+        )
     else:
-        raise ValueError(f'alternative must be one of "greater", "less", got {alternative}')
+        raise ValueError(f'alternative must be one of "greater", "less" or "both". Got {alternative}')
 
 
-def _p_val_infinite_sampling(x: pd.DataFrame, alternative: str = 'greater'):
+def _p_val_infinite_sampling(x: pd.DataFrame, alternative: str = 'greater') -> pd.Series:
     orig = x[0]
     df_test = x[1:]
     if alternative == 'greater':
-        return sum(df_test >= orig) / len(df_test)
+        return pd.Series({'>=': sum(df_test >= orig) / len(df_test)})
     elif alternative == 'less':
-        return sum(df_test <= orig) / len(df_test)
+        return pd.Series({'<=': sum(df_test <= orig) / len(df_test)})
+    elif alternative == 'both':
+        warn(
+            'Combined p-values will not add up to 1 due to the fact that greater and equal and less and equal are not mutually exclusive.'  # noqa: E501
+        )
+        return pd.Series({'>=': sum(df_test >= orig) / len(df_test), '<=': sum(df_test <= orig) / len(df_test)})
     else:
-        raise ValueError(f'alternative must be one of "greater", "less", got {alternative}')
+        raise ValueError(f'alternative must be one of "greater", "less", or "both". Got {alternative}')

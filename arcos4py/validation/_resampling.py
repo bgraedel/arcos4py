@@ -261,6 +261,8 @@ def resample_data(  # noqa: C901
     method: Union[str, list[str]] = 'shuffle_tracks',
     n=100,
     seed=42,
+    allow_duplicates=False,
+    max_tries=100,
     show_progress=True,
     verbose=False,
     paralell_processing=True,
@@ -279,6 +281,10 @@ def resample_data(  # noqa: C901
             'shift_timepoints', 'shuffle_binary_blocks', 'shuffle_coordinates_timepoint'
         n (int, optional): The number of resample iterations. Defaults to 100.
         seed (int, optional): The random seed. Defaults to 42.
+        allow_duplicates (bool, optional): Whether to allow resampling to randomly generate the same data twice.
+            Defaults to False.
+        max_tries (int, optional): The maximum number of tries to try ot generate unique data
+            when allow_duplicates is set to True. Defaults to 100.
         verbose (bool, optional): Whether to print progress. Defaults to False.
 
     Returns:
@@ -369,7 +375,7 @@ def resample_data(  # noqa: C901
     rng = np.random.default_rng(seed)
     # create a list of random numbers between 0 and 1000000
     seed_list = rng.integers(1_000_000_000, size=n)
-    df_out = []
+    df_out: list[pd.DataFrame] = []
     # shuffle xy position for each object
     if verbose:
         print(f'Resampling for each object {n} times')
@@ -405,6 +411,28 @@ def resample_data(  # noqa: C901
                 seed_list=seed_list,
                 function_args=function_args,
             )
+            if not allow_duplicates:
+                current_try = 0
+                # make sure that data_new is not already in df_out,
+                # but they are both dataframes, else redo the resampling
+                while any(
+                    data_new.loc[:, data_new.columns != 'iteration'].equals(i.loc[:, i.columns != 'iteration'])
+                    for i in df_out
+                ):
+                    current_try += 1
+                    data_new = _apply_resampling(
+                        iter_number=i,
+                        data=data,
+                        methods=methods,
+                        resampling_func_list=resampling_func_list,
+                        seed_list=seed_list,
+                        function_args=function_args,
+                    )
+                    if current_try > max_tries:
+                        raise ValueError(
+                            'Could not find a unique resampling after 100 tries, try increasing n or allow_duplicates'
+                        )
+
             df_out.append(data_new)
 
     data_it0 = data.copy()
@@ -420,7 +448,7 @@ def _apply_resampling(
     resampling_func_list: list[Callable],
     seed_list: npt.NDArray[np.int64],
     function_args: dict[str, tuple],
-):
+) -> pd.DataFrame:
     """Resamples data in order to perform bootstrapping analysis.
 
     Arguments:
