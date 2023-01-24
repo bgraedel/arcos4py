@@ -6,13 +6,17 @@
 
 ### Changed
 - None detrending now rescales measurements to 0,1 range on a global scale and not on a track-by-track basis.
-- added the parameter epsPrev by separating it from eps. 
+- added the parameter epsPrev by separating it from eps.
 epsPrev is the maximum distance cells within collective events can be separated from each other when linking them from one frame to the next.
 If set to 'None', as default, the same value as for eps is used.
 
 ### Added
-- New function to estimate_eps (import from tools) to estimate the eps paramter used for DBSCAN clustering based on the nearest neighbour distribution.
-- Tests for said function.
+- New function to estimate_eps (import from tools) to estimate the eps paramter used for DBSCAN clustering based on the nearest neighbour distribution. Three methods are supported, either mean of NN, median of NN or kneepoint of the sorted NN distribution.
+- Functions to perform resampling and subsequent validation of arcos output.
+- Unittests for added functionallity.
+
+### Fixed
+- Bug where trackCollev would overwrite the inputdata in the ARCOS object, preventing repeat tracking of collective events.
 
 ## [0.1.5] - 2022-08-23
 ### Changed
@@ -66,7 +70,7 @@ to pandas running.median, since this allows a different endrule mode
 - Interpolation now interpolates all values in all columns of the dataframe.
 - Improved usage section in the documentation.
 
-### Fixed 
+### Fixed
 - Bug in trackCollev class that would lead to an error message in some cases.
 - Spelling in docstrings.
 
