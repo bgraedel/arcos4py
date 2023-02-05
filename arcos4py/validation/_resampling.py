@@ -1,4 +1,4 @@
-"""Tools for resampling data and bootstrapping."""
+"""Tools for resampling data."""
 from __future__ import annotations
 
 import warnings
@@ -270,13 +270,13 @@ def resample_data(  # noqa: C901
     """Resamples data in order to perform bootstrapping analysis.
 
     Arguments:
-        data (pd.Dataframe): The data to bootstrap
+        data (pd.Dataframe): The data to resample.
         posCols (list): The columns to use for the position.
         frame_column (str): The column to use for the frame.
         id_column (str): The column to use for the object ID.
         meas_column (str, optional): The column to use for the measurement.
             Only needed for 'activity_blocks_shuffle'. Defaults to None.
-        method (str, optional): The method to use for bootstrapping. Defaults to 'shuffle_tracks'.
+        method (str, optional): The method to use for resampling. Defaults to 'shuffle_tracks'.
             Available methods are: "shuffle_tracks", 'shuffle_timepoints',
             'shift_timepoints', 'shuffle_binary_blocks', 'shuffle_coordinates_timepoint'
         n (int, optional): The number of resample iterations. Defaults to 100.
@@ -288,7 +288,7 @@ def resample_data(  # noqa: C901
         verbose (bool, optional): Whether to print progress. Defaults to False.
 
     Returns:
-        pd.DataFrame: The bootstrapped data
+        pd.DataFrame: The resampled data.
     """
     # validate the input
     if not isinstance(data, pd.DataFrame):
@@ -453,21 +453,21 @@ def _apply_resampling(
 
     Arguments:
         iter_number (int): The iteration number
-        data (pd.Dataframe): The data to bootstrap
-        methods (list[str]): The methods to use for bootstrapping.
-        resampling_func_list list(Callable): The function to use for bootstrapping.
+        data (pd.Dataframe): The data to resample.
+        methods (list[str]): The methods to use for resampling.
+        resampling_func_list list(Callable): The function to use for resampling.
         seed_list list(int): The random seed.
-        function_args (dict[str, Callable]): The arguments for the bootstrap function.
+        function_args (dict[str, Callable]): The arguments for the resamping. function.
 
     Returns:
-        pd.DataFrame: The bootstrapped data
+        pd.DataFrame: The resampled data.
     """
     data_new = data.copy()
     _seed = seed_list[iter_number - 1]
 
-    # iterate over the bootstrapping functions
-    for bootstrapping_func, method in zip(resampling_func_list, methods):
-        data_new = bootstrapping_func(data_new, *function_args[method], seed=_seed)
+    # iterate over the resampling functions
+    for resampling_func, method in zip(resampling_func_list, methods):
+        data_new = resampling_func(data_new, *function_args[method], seed=_seed)
 
     data_new['iteration'] = np.repeat(iter_number, len(data_new))
     return data_new

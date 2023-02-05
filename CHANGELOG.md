@@ -1,19 +1,19 @@
 # Changelog
 
-## [0.1.6] - Upcoming Changes
+## [0.1.6] - 2022-05-02
 ### Fixed
 - Bug where trackCollev would overwrite the inputdata in the ARCOS object, preventing repeat tracking of collective events.
 - Spelling mistake in \__init__.py
 
 ### Changed
 - None detrending now rescales measurements to 0,1 range on a global scale and not on a track-by-track basis.
-- added the parameter epsPrev by separating it from eps.
+- Added the parameter epsPrev by separating it from eps.
 epsPrev is the maximum distance cells within collective events can be separated from each other when linking them from one frame to the next.
 If set to 'None', as default, the same value as for eps is used.
 
 ### Added
 - New function estimate_eps (import from tools) to estimate the eps paramter used for DBSCAN clustering based on the nearest neighbour distribution. Three methods are supported, either mean of NN, median of NN or kneepoint of the sorted NN distribution.
-- Functions to perform resampling and subsequent validation of arcos output.
+- Functions to perform resampling and bootstrapping to perform validation of arcos output.
 - Unittests for added functionallity.
 
 ## [0.1.5] - 2022-08-23

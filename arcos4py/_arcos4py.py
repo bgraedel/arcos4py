@@ -45,6 +45,9 @@ class ARCOS:
         id_column (str): Indicating the track id/id column in input_data.
         measurement_column (str): Indicating the measurement column in input_data.
         clid_column (str): Indicating the column name containing the collective event ids.
+        bin_col (str | None): Name of the binary column. This is generated based on the name of the measurement_column
+            after binarization.
+            Optionally can be set in order to provide a already binarized column to skip ARCOS binarization.
     """
 
     def __init__(
@@ -75,8 +78,6 @@ class ARCOS:
         self.measurement_column = measurement_column
         self.clid_column = clid_column
 
-        self.data_binarized: pd.DataFrame = None
-        self.tracked_events: pd.DataFrame = None
         self.bin_col: Union[str, None] = None
         # to check if no measurement was provided assign None
 
@@ -87,7 +88,7 @@ class ARCOS:
             self.bin_col = f"{self.measurement_column}.bin"
 
     def __repr__(self) -> pd.DataFrame:
-        """Set __repr___ to return self.data."""
+        """Set __repr__ to return self.data."""
         return repr(self.data)
 
     def _check_col(self):

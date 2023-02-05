@@ -17,4 +17,5 @@ __all__ = [
     "detectCollev",
     "filterCollev",
     "calcCollevStats",
+    "estimate_eps",
 ]

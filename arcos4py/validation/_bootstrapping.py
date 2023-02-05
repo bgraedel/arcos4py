@@ -102,7 +102,6 @@ def bootstrap_arcos(
     clid_name = 'clid'
 
     if isinstance(method, str):
-
         print(f'Resampling data using method "{method}"...')
     elif isinstance(method, list):
         print(f'Resampling data using methods "{method}"...')
@@ -176,7 +175,7 @@ def calculate_pvalue(
         plot (bool): Plot the distribution of the bootstrapped data.
 
     Returns:
-        DataFrame containing the p-values.
+        DataFrame (pd.DataFrame): containing the p-values.
     """
     if finite_correction:
         pval = stats_df_mean[stats_metric].agg(lambda x: _p_val_finite_sampling(x, pval_alternative))
@@ -272,8 +271,8 @@ def calculate_arcos_stats(
         clid_name (str, optional): Name of the cluster id column. Defaults to 'clid'.
 
     Returns:
-        DataFrame: Dataframe with the bootstrapped statistics.
-        DataFrame: Dataframe with mean statistics.
+        DataFrame (pd.DataFrame): Dataframe with the bootstrapped statistics.
+        DataFrame (pd.DataFrame): Dataframe with mean statistics.
     """
     if paralell_processing:
         from joblib import Parallel, delayed

@@ -51,20 +51,20 @@ Ready to contribute? Here's how to set up `arcos4py` for local development.
 2. Clone your fork locally
 
     ```
-    $ git clone git@github.com:your_name_here/arcos4py.git
+    git clone git@github.com:your_name_here/arcos4py.git
     ```
 
 3. Ensure [poetry](https://python-poetry.org/docs/) is installed.
 4. Install dependencies and start your virtualenv:
 
     ```
-    $ poetry install -E test -E doc -E dev
+    poetry install -E test -E doc -E dev
     ```
 
 5. Create a branch for local development:
 
     ```
-    $ git checkout -b name-of-your-bugfix-or-feature
+    git checkout -b name-of-your-bugfix-or-feature
     ```
 
     Now you can make your changes locally.
@@ -73,15 +73,15 @@ Ready to contribute? Here's how to set up `arcos4py` for local development.
    tests, including testing other Python versions, with tox:
 
     ```
-    $ poetry run tox
+    poetry run tox
     ```
 
 7. Commit your changes and push your branch to GitHub:
 
     ```
-    $ git add .
-    $ git commit -m "Your detailed description of your changes."
-    $ git push origin name-of-your-bugfix-or-feature
+    git add .
+    git commit -m "Your detailed description of your changes."
+    git push origin name-of-your-bugfix-or-feature
     ```
 
 8. Submit a pull request through the GitHub website.
@@ -114,9 +114,9 @@ Make sure all your changes are committed (including an entry in CHANGELOG.md).
 Then run:
 
 ```
-$ poetry run bump2version patch # possible: major / minor / patch
-$ git push
-$ git push --tags
+poetry run bump2version patch # possible: major / minor / patch
+git push
+git push --tags
 ```
 
 GitHub Actions will then deploy to PyPI if tests pass.
