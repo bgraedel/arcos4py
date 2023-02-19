@@ -8,7 +8,6 @@ from numpy import int64
 from pandas.testing import assert_frame_equal
 
 from arcos4py import ARCOS
-from arcos4py.tools._errors import noDataError
 
 
 @pytest.fixture
@@ -25,7 +24,7 @@ def no_bin_data():
 
 
 def test_empty_data(no_bin_data: pd.DataFrame):
-    with pytest.raises(noDataError, match='Input is empty'):
+    with pytest.raises(ValueError, match='Input is empty'):
         test_data = no_bin_data[no_bin_data['m'] > 0]
         pos = ['x']
         ts = ARCOS(
@@ -44,7 +43,7 @@ def test_1_central_1_prev():
     ts.bin_col = 'm'
     out = ts.trackCollev(eps=1, minClsz=1, nPrev=1)
     out = out.drop(columns=['m', 'x'])
-    assert_frame_equal(out, df_true, check_dtype=False)
+    assert_frame_equal(out, df_true, check_dtype=False, check_like=True)
 
 
 def test_1_central_2_prev():
@@ -57,7 +56,7 @@ def test_1_central_2_prev():
     ts.bin_col = 'm'
     out = ts.trackCollev(eps=1, epsPrev=1, minClsz=1, nPrev=2)
     out = out.drop(columns=['m', 'x'])
-    assert_frame_equal(out, df_true, check_dtype=False)
+    assert_frame_equal(out, df_true, check_dtype=False, check_like=True)
 
 
 def test_1_central_3D():
@@ -70,7 +69,7 @@ def test_1_central_3D():
     ts.bin_col = 'm'
     out = ts.trackCollev(eps=1, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=['m', 'x', 'y', 'z'])
-    assert_frame_equal(out, df_true)
+    assert_frame_equal(out, df_true, check_like=True)
 
 
 def test_1_central_growing():
@@ -83,7 +82,7 @@ def test_1_central_growing():
     ts.bin_col = 'm'
     out = ts.trackCollev(eps=1, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=['m', 'x'])
-    assert_frame_equal(out, df_true)
+    assert_frame_equal(out, df_true, check_like=True)
 
 
 def test_2_central_growing():
@@ -96,7 +95,7 @@ def test_2_central_growing():
     ts.bin_col = 'm'
     out = ts.trackCollev(eps=1, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=['m', 'x'])
-    assert_frame_equal(out, df_true)
+    assert_frame_equal(out, df_true, check_like=True)
 
 
 def test_2_with_1_common_symmetric():
@@ -109,7 +108,7 @@ def test_2_with_1_common_symmetric():
     ts.bin_col = 'm'
     out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=['m', 'x'])
-    assert_frame_equal(out, df_true)
+    assert_frame_equal(out, df_true, check_like=True)
 
 
 def test_2_with_1_common_asymmetric():
@@ -122,7 +121,7 @@ def test_2_with_1_common_asymmetric():
     ts.bin_col = 'm'
     out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=['m', 'x'])
-    assert_frame_equal(out, df_true)
+    assert_frame_equal(out, df_true, check_like=True)
 
 
 def test_3_spreading_1_prev():
@@ -135,7 +134,7 @@ def test_3_spreading_1_prev():
     ts.bin_col = 'm'
     out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=['m', 'x'])
-    assert_frame_equal(out, df_true)
+    assert_frame_equal(out, df_true, check_like=True)
 
 
 def test_3_spreading_2_prev():
@@ -148,7 +147,7 @@ def test_3_spreading_2_prev():
     ts.bin_col = 'm'
     out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=2)
     out = out.drop(columns=['m', 'x'])
-    assert_frame_equal(out, df_true)
+    assert_frame_equal(out, df_true, check_like=True)
 
 
 def test_5_overlapping_1_prev():
@@ -161,7 +160,7 @@ def test_5_overlapping_1_prev():
     ts.bin_col = 'm'
     out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=['m', 'x'])
-    assert_frame_equal(out, df_true)
+    assert_frame_equal(out, df_true, check_like=True)
 
 
 def test_5_overlapping_2_prev():
@@ -174,7 +173,7 @@ def test_5_overlapping_2_prev():
     ts.bin_col = 'm'
     out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=2)
     out = out.drop(columns=['m', 'x'])
-    assert_frame_equal(out, df_true)
+    assert_frame_equal(out, df_true, check_like=True)
 
 
 def test_6_overlapping():
@@ -188,7 +187,7 @@ def test_6_overlapping():
     out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=['m', 'x'])
     out['trackID'] = out['trackID'].astype(int64)
-    assert_frame_equal(out, df_true)
+    assert_frame_equal(out, df_true, check_like=True)
 
 
 def test_split_from_single():
@@ -198,7 +197,7 @@ def test_split_from_single():
     ts = ARCOS(df_in, posCols=pos, frame_column='t', id_column='id', measurement_column=None, clid_column='collid')
     out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=['pos'])
-    assert_frame_equal(out, df_true)
+    assert_frame_equal(out, df_true, check_like=True)
 
 
 def test_split_from_2_objects():
@@ -208,7 +207,7 @@ def test_split_from_2_objects():
     ts = ARCOS(df_in, posCols=pos, frame_column='t', id_column='id', measurement_column=None, clid_column='collid')
     out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=['pos'])
-    assert_frame_equal(out, df_true)
+    assert_frame_equal(out, df_true, check_like=True)
 
 
 def test_cross_2_objects():
@@ -218,7 +217,7 @@ def test_cross_2_objects():
     ts = ARCOS(df_in, posCols=pos, frame_column='t', id_column='id', measurement_column=None, clid_column='collid')
     out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=['pos'])
-    assert_frame_equal(out, df_true)
+    assert_frame_equal(out, df_true, check_like=True)
 
 
 def test_merge_split_2_objects_with_common():
@@ -228,7 +227,7 @@ def test_merge_split_2_objects_with_common():
     ts = ARCOS(df_in, posCols=pos, frame_column='t', id_column='id', measurement_column=None, clid_column='collid')
     out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=['pos'])
-    assert_frame_equal(out, df_true)
+    assert_frame_equal(out, df_true, check_like=True)
 
 
 ## if algorithm behaves differently (like in R) a different output is produced regarding collective events
@@ -239,7 +238,7 @@ def test_merge_split_2_objects_crossing():
     ts = ARCOS(df_in, posCols=pos, frame_column='t', id_column='id', measurement_column=None, clid_column='collid')
     out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=['pos'])
-    assert_frame_equal(out, df_true)
+    assert_frame_equal(out, df_true, check_like=True)
 
 
 ## if algorithm behaves differently (like in R) a different output is produced regarding collective events
@@ -250,7 +249,7 @@ def test_merge_and_split_2_objects_near():
     ts = ARCOS(df_in, posCols=pos, frame_column='t', id_column='id', measurement_column=None, clid_column='collid')
     out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=['pos'])
-    assert_frame_equal(out, df_true)
+    assert_frame_equal(out, df_true, check_like=True)
 
 
 def test_4_objects_in_2_events():
@@ -260,7 +259,7 @@ def test_4_objects_in_2_events():
     ts = ARCOS(df_in, posCols=pos, frame_column='frame', id_column='id', measurement_column=None, clid_column='collId')
     out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=['x'])
-    assert_frame_equal(out, df_true)
+    assert_frame_equal(out, df_true, check_like=True)
 
 
 def test_repeat_detection():
@@ -273,7 +272,7 @@ def test_repeat_detection():
     assert_frame_equal(out, df_true)
     out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=pos)
-    assert_frame_equal(out, df_true)
+    assert_frame_equal(out, df_true, check_like=True)
 
 
 def test_repeat_with_different_eps():
@@ -286,4 +285,4 @@ def test_repeat_with_different_eps():
     assert_frame_equal(out, df_true)
     out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=pos)
-    assert_frame_equal(out, df_true)
+    assert_frame_equal(out, df_true, check_like=True)

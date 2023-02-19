@@ -58,6 +58,7 @@ class ARCOS:
         id_column: str = 'id',
         measurement_column: str = 'meas',
         clid_column: str = 'clTrackID',
+        n_jobs: int = 1,
     ) -> None:
         """Constructs class with provided arguments.
 
@@ -70,6 +71,7 @@ class ARCOS:
             id_column (str): Indicating the track id/object id column in input_data.
             measurement_column (str): Indicating the measurement column in input_data.
             clid_column (str): Indicating the column name containing the collective event ids.
+            n_jobs (str): Number of workers to spawn, -1 uses all available cpus.
         """
         self.data = data
         self.posCols = posCols
@@ -77,6 +79,7 @@ class ARCOS:
         self.id_column = id_column
         self.measurement_column = measurement_column
         self.clid_column = clid_column
+        self.n_jobs = n_jobs
 
         self.bin_col: Union[str, None] = None
         # to check if no measurement was provided assign None
@@ -203,6 +206,7 @@ class ARCOS:
             id_column=self.id_column,
             bin_meas_column=self.bin_col,
             clid_column=self.clid_column,
+            n_jobs=self.n_jobs,
         ).run()
 
         return data_events
