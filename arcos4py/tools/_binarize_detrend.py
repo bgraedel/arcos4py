@@ -7,6 +7,7 @@ Example:
 """
 import numpy as np
 import pandas as pd
+from joblib import Parallel, delayed
 from scipy.ndimage import median_filter
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import PolynomialFeatures, minmax_scale
@@ -36,6 +37,7 @@ class detrender:
         peakThr: float = 0.2,
         polyDeg: int = 1,
         biasMet: str = "runmed",
+        n_jobs: int = 1,
     ) -> None:
         """Smooth and de-trend input data.
 
@@ -45,6 +47,7 @@ class detrender:
             peakThr (float): Threshold for rescaling of the de-trended signal.
             polyDeg (int): Sets the degree of the polynomial for lm fitting.
             biasMet (str): Indicating de-trending method, one of ['runmed', 'lm', 'none'].
+            n_jobs (int): Number of paralell workers to spawn, -1 uses all available cpus.
         """
         # check if biasmethod contains one of these three types
         biasMet_types = ["runmed", "lm", "none"]
@@ -56,6 +59,7 @@ class detrender:
         self.peakThr = peakThr
         self.polyDeg = polyDeg
         self.biasMet = biasMet
+        self.n_jobs = n_jobs
 
     def _detrend_runnmed(self, x, filter_size, endrule_mode):
         local_smoothing = median_filter(input=x, size=filter_size, mode=endrule_mode)
@@ -121,7 +125,12 @@ class detrender:
                 group_array = x[:, group_index].astype('U6')
 
         grouped_array = np.split(meas_array, np.unique(group_array, axis=0, return_index=True)[1][1:])
-        out = [self._run_detrend(x) for x in grouped_array]
+        out = Parallel(n_jobs=self.n_jobs)(
+            delayed(self._run_detrend)(
+                x=x,
+            )
+            for x in grouped_array
+        )
         out_list = [item for sublist in out for item in sublist]
         return np.array(out_list)
 
@@ -159,6 +168,7 @@ class binData(detrender):
         binThr: float = 0.1,
         polyDeg: int = 1,
         biasMet: str = "runmed",
+        n_jobs: int = 1,
     ) -> None:
         """Smooth, de-trend, and binarise the input data.
 
@@ -169,8 +179,9 @@ class binData(detrender):
             binThr (float): Threshold for binarizing the de-trended signal.
             polyDeg (int): Sets the degree of the polynomial for lm fitting.
             biasMet (str): De-trending method, one of ['runmed', 'lm', 'none'].
+            n_jobs (int): Number of jobs to run in parallel.
         """
-        super().__init__(smoothK, biasK, peakThr, polyDeg, biasMet)
+        super().__init__(smoothK, biasK, peakThr, polyDeg, biasMet, n_jobs)
         self.binThr = binThr
 
     def _rescale_data(self, x: np.ndarray, group_index: int, meas_index: int, feat_range: tuple = (0, 1)) -> np.ndarray:

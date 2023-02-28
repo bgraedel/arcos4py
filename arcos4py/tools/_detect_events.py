@@ -76,6 +76,7 @@ class detectCollev:
         bin_meas_column: Union[str, None] = 'meas',
         clid_column: str = 'clTrackID',
         n_jobs: int = 1,
+        show_progress: bool = True,
     ) -> None:
         """Constructs class with input parameters.
 
@@ -96,6 +97,7 @@ class detectCollev:
             bin_meas_column (str): Indicating the bin_meas_column in input_data or None.
             clid_column (str): Indicating the column name containing the ids of collective events.
             n_jobs (int): Number of paralell workers to spawn, -1 uses all available cpus.
+            show_progress (bool): If True, shows progress bar.
         """
         # assign some variables passed in as arguments to the object
         self.input_data = input_data
@@ -110,6 +112,8 @@ class detectCollev:
         self.id_column = id_column
         self.bin_meas_column = bin_meas_column
         self.n_jobs = n_jobs
+        self.show_progress = show_progress
+
         self.clid_column = clid_column
         self.posCols = posCols
         self.columns_input = self.input_data.columns
@@ -223,7 +227,7 @@ class detectCollev:
                 eps=self.eps,
                 minClSz=self.minClSz,
             )
-            for i in auto.tqdm(grouped_array)
+            for i in auto.tqdm(grouped_array, disable=not self.show_progress)
         )
         return out
 
@@ -263,7 +267,7 @@ class detectCollev:
         assert frame_data.shape[0] == pos_data.shape[0] == colid_data.shape[0]
         unique_frame_vals = np.unique(frame_data, return_index=False)
         # loop over all frames to link detected clusters iteratively
-        for t in auto.tqdm(unique_frame_vals[1:]):
+        for t in auto.tqdm(unique_frame_vals[1:], disable=not self.show_progress):
             prev_frame_mask = (frame_data >= (t - self.nPrev)) & (frame_data < t)
             current_frame_mask = frame_data == t
             prev_frame_colid = colid_data[prev_frame_mask]
@@ -277,21 +281,43 @@ class detectCollev:
                 current_frame_colid_unique = np.unique(current_frame_colid, return_index=False)
                 # loop over unique cluster in frame
                 for cluster in current_frame_colid_unique:
-                    pos_current_cluster = current_frame_pos_data[current_frame_colid == cluster]
-                    # calculate nearest neighbour between previoius and current frame
-                    nn_dist, nn_indices = kdtree_prevframe.query(pos_current_cluster, k=1)
-                    prev_cluster_nbr_all = prev_frame_colid[nn_indices]
-                    prev_cluster_nbr_eps = prev_cluster_nbr_all[(nn_dist <= self.epsPrev)]
-                    # only continue if neighbours
-                    # were detected within eps distance
-                    if prev_cluster_nbr_eps.size >= propagation_threshold:
-                        prev_clusternbr_eps_unique = np.unique(prev_cluster_nbr_eps, return_index=False)
-                        if prev_clusternbr_eps_unique.size > 0:
-                            # propagate cluster id from previous frame
-                            colid_data[((current_frame_mask) & (colid_data == cluster))] = prev_cluster_nbr_all
+                    self._link(
+                        colid_data,
+                        propagation_threshold,
+                        current_frame_mask,
+                        prev_frame_colid,
+                        current_frame_colid,
+                        current_frame_pos_data,
+                        kdtree_prevframe,
+                        cluster,
+                    )
 
         consecutive_collids = np.unique(colid_data, return_inverse=True)[1] + 1
         return consecutive_collids
+
+    def _link(
+        self,
+        colid_data,
+        propagation_threshold,
+        current_frame_mask,
+        prev_frame_colid,
+        current_frame_colid,
+        current_frame_pos_data,
+        kdtree_prevframe,
+        cluster,
+    ):
+        pos_current_cluster = current_frame_pos_data[current_frame_colid == cluster]
+        # calculate nearest neighbour between previoius and current frame
+        nn_dist, nn_indices = kdtree_prevframe.query(pos_current_cluster, k=1)
+        prev_cluster_nbr_all = prev_frame_colid[nn_indices]
+        prev_cluster_nbr_eps = prev_cluster_nbr_all[(nn_dist <= self.epsPrev)]
+        # only continue if neighbours
+        # were detected within eps distance
+        if prev_cluster_nbr_eps.size >= propagation_threshold:
+            prev_clusternbr_eps_unique = np.unique(prev_cluster_nbr_eps, return_index=False)
+            if prev_clusternbr_eps_unique.size > 0:
+                # propagate cluster id from previous frame
+                colid_data[((current_frame_mask) & (colid_data == cluster))] = prev_cluster_nbr_all
 
     def _sort_input_dataframe(self, x: pd.DataFrame, frame_col: str, object_id_col: str | None) -> pd.DataFrame:
         """Sorts the input dataframe according to the frame column and track id column if available."""
@@ -364,6 +390,7 @@ def estimate_eps(
     n_neighbors: int = 5,
     plot: bool = True,
     plt_size: tuple[int, int] = (5, 5),
+    max_samples=50_000,
     **kwargs: dict,
 ):
     """Estimates eps parameter in DBSCAN.
@@ -458,7 +485,10 @@ def estimate_eps(
     # flatten array
     distances_flat = distances.flatten()
     distances_flat = distances_flat[np.isfinite(distances_flat)]
-    distances_sorted = np.sort(distances_flat)
+    distances_flat_selection = np.random.choice(
+        distances_flat, min(max_samples, distances_flat.shape[0]), replace=False
+    )
+    distances_sorted = np.sort(distances_flat_selection)
     if method == 'kneepoint':
         k1 = KneeLocator(
             np.arange(0, distances_sorted.shape[0]),

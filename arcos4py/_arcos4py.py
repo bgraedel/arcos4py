@@ -170,6 +170,7 @@ class ARCOS:
             binThr,
             polyDeg,
             biasMet,
+            n_jobs=self.n_jobs,
         ).run(self.data, colMeas=self.measurement_column, colGroup=self.id_column, colFrame=self.frame_column)
         return self.data
 
