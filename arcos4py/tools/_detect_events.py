@@ -7,11 +7,13 @@ Example:
 """
 from __future__ import annotations
 
+import os
+import warnings
 from typing import Any, Union
 
 import numpy as np
 import pandas as pd
-from joblib import Parallel, delayed
+from joblib import Parallel, delayed, dump, load
 from kneed import KneeLocator
 from matplotlib import pyplot as plt
 from scipy.spatial import KDTree
@@ -266,58 +268,57 @@ class detectCollev:
         """
         assert frame_data.shape[0] == pos_data.shape[0] == colid_data.shape[0]
         unique_frame_vals = np.unique(frame_data, return_index=False)
-        # loop over all frames to link detected clusters iteratively
-        for t in auto.tqdm(unique_frame_vals[1:], disable=not self.show_progress):
-            prev_frame_mask = (frame_data >= (t - self.nPrev)) & (frame_data < t)
-            current_frame_mask = frame_data == t
-            prev_frame_colid = colid_data[prev_frame_mask]
-            current_frame_colid = colid_data[current_frame_mask]
-            prev_frame_pos_data = pos_data[prev_frame_mask]
-            current_frame_pos_data = pos_data[current_frame_mask]
-            kdtree_prevframe = KDTree(data=prev_frame_pos_data)
+        folder = './joblib_memmap'
+        try:
+            os.mkdir(folder)
+        except FileExistsError:
+            pass
 
-            # only continue if objects were detected in previous frame
-            if prev_frame_colid.size:
-                current_frame_colid_unique = np.unique(current_frame_colid, return_index=False)
-                # loop over unique cluster in frame
-                for cluster in current_frame_colid_unique:
-                    self._link(
-                        colid_data,
-                        propagation_threshold,
-                        current_frame_mask,
-                        prev_frame_colid,
-                        current_frame_colid,
-                        current_frame_pos_data,
-                        kdtree_prevframe,
-                        cluster,
+        data_filename_memmap = os.path.join(folder, 'data_memmap')
+        dump(colid_data, data_filename_memmap)
+        data_memmap = load(data_filename_memmap, mmap_mode='w+')
+        # output = np.memmap(ntf, mode='w+', shape=colid_data.shape, dtype=colid_data.dtype)
+        # output[:] = colid_data[:]
+        # loop over all frames to link detected clusters iteratively
+        with Parallel(n_jobs=self.n_jobs) as parallel:
+            for t in auto.tqdm(unique_frame_vals[1:], disable=not self.show_progress):
+                prev_frame_mask = (frame_data >= (t - self.nPrev)) & (frame_data < t)
+                current_frame_mask = frame_data == t
+                prev_frame_colid = data_memmap[prev_frame_mask]
+                current_frame_colid = data_memmap[current_frame_mask]
+                prev_frame_pos_data = pos_data[prev_frame_mask]
+                current_frame_pos_data = pos_data[current_frame_mask]
+                kdtree_prevframe = KDTree(data=prev_frame_pos_data)
+
+                # only continue if objects were detected in previous frame
+                if prev_frame_colid.size:
+                    current_frame_colid_unique = np.unique(current_frame_colid, return_index=False)
+                    # loop over unique cluster in frame
+                    parallel(
+                        delayed(_link)(
+                            data_memmap,
+                            propagation_threshold,
+                            current_frame_mask,
+                            prev_frame_colid,
+                            current_frame_colid,
+                            current_frame_pos_data,
+                            kdtree_prevframe,
+                            cluster,
+                            self.epsPrev,
+                        )
+                        for cluster in (current_frame_colid_unique)
                     )
 
-        consecutive_collids = np.unique(colid_data, return_inverse=True)[1] + 1
-        return consecutive_collids
+        consecutive_collids = np.unique(data_memmap, return_inverse=True)[1] + 1
+        del data_memmap  # make sure its garbage collected and the file is deleted
+        # del colid_memmap
+        import shutil
 
-    def _link(
-        self,
-        colid_data,
-        propagation_threshold,
-        current_frame_mask,
-        prev_frame_colid,
-        current_frame_colid,
-        current_frame_pos_data,
-        kdtree_prevframe,
-        cluster,
-    ):
-        pos_current_cluster = current_frame_pos_data[current_frame_colid == cluster]
-        # calculate nearest neighbour between previoius and current frame
-        nn_dist, nn_indices = kdtree_prevframe.query(pos_current_cluster, k=1)
-        prev_cluster_nbr_all = prev_frame_colid[nn_indices]
-        prev_cluster_nbr_eps = prev_cluster_nbr_all[(nn_dist <= self.epsPrev)]
-        # only continue if neighbours
-        # were detected within eps distance
-        if prev_cluster_nbr_eps.size >= propagation_threshold:
-            prev_clusternbr_eps_unique = np.unique(prev_cluster_nbr_eps, return_index=False)
-            if prev_clusternbr_eps_unique.size > 0:
-                # propagate cluster id from previous frame
-                colid_data[((current_frame_mask) & (colid_data == cluster))] = prev_cluster_nbr_all
+        try:
+            shutil.rmtree(folder)
+        except:  # noqa
+            warnings.warn('Could not delete joblib memmap folder.')
+        return consecutive_collids
 
     def _sort_input_dataframe(self, x: pd.DataFrame, frame_col: str, object_id_col: str | None) -> pd.DataFrame:
         """Sorts the input dataframe according to the frame column and track id column if available."""
@@ -371,6 +372,32 @@ class detectCollev:
         # tracked_events = tracked_events.merge(df_to_merge, how="left")
         df_out[self.clid_column] = tracked_events
         return df_out
+
+
+def _link(
+    output,
+    propagation_threshold,
+    current_frame_mask,
+    prev_frame_colid,
+    current_frame_colid,
+    current_frame_pos_data,
+    kdtree_prevframe,
+    cluster,
+    epsPrev,
+):
+    pos_current_cluster = current_frame_pos_data[current_frame_colid == cluster]
+    # calculate nearest neighbour between previoius and current frame
+    nn_dist, nn_indices = kdtree_prevframe.query(pos_current_cluster, k=1)
+    prev_cluster_nbr_all = prev_frame_colid[nn_indices]
+    prev_cluster_nbr_eps = prev_cluster_nbr_all[(nn_dist <= epsPrev)]
+    # only continue if neighbours
+    # were detected within eps distance
+    if prev_cluster_nbr_eps.size >= propagation_threshold:
+        prev_clusternbr_eps_unique = np.unique(prev_cluster_nbr_eps, return_index=False)
+        if prev_clusternbr_eps_unique.size > 0:
+            # propagate cluster id from previous frame
+            output[((current_frame_mask) & (output == cluster))] = prev_cluster_nbr_all
+    return None
 
 
 def _nearest_neighbour_eps(
