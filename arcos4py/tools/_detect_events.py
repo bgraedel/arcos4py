@@ -18,7 +18,7 @@ from kneed import KneeLocator
 from matplotlib import pyplot as plt
 from scipy.spatial import KDTree
 from sklearn.cluster import DBSCAN
-from tqdm import auto
+from tqdm import tqdm
 
 
 def _dbscan(x: np.ndarray, eps: float, minClSz: int) -> np.ndarray:
@@ -67,7 +67,7 @@ class detectCollev:
 
     def __init__(
         self,
-        input_data: pd.DataFrame,
+        input_data: pd.DataFrame | np.ndarray,
         eps: float = 1,
         epsPrev: Union[float, None] = None,
         minClSz: int = 1,
@@ -77,6 +77,7 @@ class detectCollev:
         id_column: Union[str, None] = None,
         bin_meas_column: Union[str, None] = 'meas',
         clid_column: str = 'clTrackID',
+        dims: str = "TXY",
         n_jobs: int = 1,
         show_progress: bool = True,
     ) -> None:
@@ -118,10 +119,8 @@ class detectCollev:
 
         self.clid_column = clid_column
         self.posCols = posCols
-        self.columns_input = self.input_data.columns
         self.clidFrame = f'{clid_column}.frame'
-
-        self.pos_cols_inputdata = [col for col in self.posCols if col in self.columns_input]
+        self.dims = dims
 
         # run input checks
         self._run_input_checks()
@@ -131,17 +130,25 @@ class detectCollev:
         raises error if not."""
         if self.input_data is None:
             raise ValueError("Input is None")
-        elif self.input_data.empty:
-            raise ValueError("Input is empty")
+        if isinstance(self.input_data, pd.DataFrame):
+            if self.input_data.empty:
+                raise ValueError("Input is empty")
+        if isinstance(self.input_data, np.ndarray):
+            if self.input_data.size == 0:
+                raise ValueError("Input is empty")
 
     def _check_pos_columns(self):
         """Checks if Input contains correct columns\
         raises Exception if not."""
-        if not all(item in self.columns_input for item in self.posCols):
+        if not isinstance(self.input_data, pd.DataFrame):
+            return
+        if not all(item in self.input_data.columns for item in self.posCols):
             raise ValueError("Input data does not have the indicated position columns!")
 
     def _check_frame_column(self):
-        if self.frame_column not in self.columns_input:
+        if not isinstance(self.input_data, pd.DataFrame):
+            return
+        if self.frame_column not in self.input_data.columns:
             raise ValueError("Input data does not have the indicated frame column!")
 
     def _check_eps(self):
@@ -193,7 +200,7 @@ class detectCollev:
         pos_columns_np = data[pos_col].to_numpy()
         return frame_column_np, pos_columns_np
 
-    def _filter_active(self, data: pd.DataFrame, bin_meas_col: Union[str, None]) -> pd.DataFrame:
+    def _filter_active_dataframe(self, data: pd.DataFrame, bin_meas_col: Union[str, None]) -> pd.DataFrame:
         """Selects rows with binary value of greater than 0.
 
         Arguments:
@@ -206,6 +213,25 @@ class detectCollev:
         if bin_meas_col is not None:
             data = data[data[bin_meas_col] > 0]
         return data
+
+    def _filter_active_arrays(
+        self, frame_data: np.ndarray, pos_data: np.ndarray, bin_meas_data: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Selects rows with binary value of greater than 0.
+
+        Arguments:
+            frame_data (np.ndarray): frame column as a numpy array.
+            pos_data (np.ndarray): positions/coordinate columns as a numpy array.
+            bin_meas_data (np.ndarray): binary measurement column as a numpy array.
+
+        Returns:
+            np.ndarray, np.ndarray, np.ndarray: Filtered numpy arrays.
+        """
+        if bin_meas_data is not None:
+            active = np.argwhere(bin_meas_data > 0).flatten()
+            frame_data = frame_data[active]
+            pos_data = pos_data[active]
+        return frame_data, pos_data
 
     # @profile
     def _run_dbscan(self, frame_data: np.ndarray, pos_data: np.ndarray, n_jobs: int = 1) -> list[np.ndarray]:
@@ -222,14 +248,13 @@ class detectCollev:
         assert frame_data.shape[0] == pos_data.shape[0]
         grouped_array = np.split(pos_data, np.unique(frame_data, axis=0, return_index=True)[1][1:])
         # map dbscan to grouped_array
-        # out = [_dbscan(i) for i in grouped_array]
         out = Parallel(n_jobs=n_jobs)(
             delayed(_dbscan)(
                 x=i,
                 eps=self.eps,
                 minClSz=self.minClSz,
             )
-            for i in auto.tqdm(grouped_array, disable=not self.show_progress)
+            for i in tqdm(grouped_array, disable=not self.show_progress)
         )
         return out
 
@@ -277,11 +302,10 @@ class detectCollev:
         data_filename_memmap = os.path.join(folder, 'data_memmap')
         dump(colid_data, data_filename_memmap)
         data_memmap = load(data_filename_memmap, mmap_mode='w+')
-        # output = np.memmap(ntf, mode='w+', shape=colid_data.shape, dtype=colid_data.dtype)
-        # output[:] = colid_data[:]
+
         # loop over all frames to link detected clusters iteratively
         with Parallel(n_jobs=self.n_jobs) as parallel:
-            for t in auto.tqdm(unique_frame_vals[1:], disable=not self.show_progress):
+            for t in tqdm(unique_frame_vals[1:], disable=not self.show_progress):
                 prev_frame_mask = (frame_data >= (t - self.nPrev)) & (frame_data < t)
                 current_frame_mask = frame_data == t
                 prev_frame_colid = data_memmap[prev_frame_mask]
@@ -289,7 +313,6 @@ class detectCollev:
                 prev_frame_pos_data = pos_data[prev_frame_mask]
                 current_frame_pos_data = pos_data[current_frame_mask]
                 kdtree_prevframe = KDTree(data=prev_frame_pos_data)
-
                 # only continue if objects were detected in previous frame
                 if prev_frame_colid.size:
                     current_frame_colid_unique = np.unique(current_frame_colid, return_index=False)
@@ -345,16 +368,23 @@ class detectCollev:
         5. Tracks collective events i.e. links cluster ids across frames.
         6. Creates final DataFrame.
         """
+        if isinstance(self.input_data, pd.DataFrame):
+            return self._dataframe_linking(self.input_data, copy)
+        elif isinstance(self.input_data, np.ndarray):
+            return self._array_linking(self.input_data, copy)
+
+    def _dataframe_linking(self, input_data, copy):
         if copy:
-            x = self.input_data.copy()
+            x = input_data
         else:
-            x = self.input_data
+            x = input_data
+        pos_cols_inputdata = [col for col in self.posCols if col in self.input_data.columns]
         x_sorted = self._sort_input_dataframe(x, frame_col=self.frame_column, object_id_col=self.id_column)
-        x_filtered = self._filter_active(x_sorted, self.bin_meas_column)
+        x_filtered = self._filter_active_dataframe(x_sorted, self.bin_meas_column)
         frame_data, pos_data = self._select_necessary_columns(
             x_filtered,
             self.frame_column,
-            self.pos_cols_inputdata,
+            pos_cols_inputdata,
         )
         clid_vals = self._run_dbscan(frame_data=frame_data, pos_data=pos_data, n_jobs=self.n_jobs)
         clid_vals_unique = self._make_db_id_unique(
@@ -372,6 +402,31 @@ class detectCollev:
         # tracked_events = tracked_events.merge(df_to_merge, how="left")
         df_out[self.clid_column] = tracked_events
         return df_out
+
+    def _array_linking(self, x, copy):
+        if copy:
+            x = self.input_data.copy()
+        else:
+            x = self.input_data
+        pos_data, meas_data, frame_data = _image_parser(x, dims=self.dims)
+        frame_data_active, pos_data_active = self._filter_active_arrays(frame_data, pos_data, meas_data)
+        clid_vals = self._run_dbscan(frame_data=frame_data_active, pos_data=pos_data_active, n_jobs=self.n_jobs)
+        clid_vals_unique = self._make_db_id_unique(
+            clid_vals,
+        )
+        nan_rows = np.isnan(clid_vals_unique)
+        tracked_events = self._link_clusters_between_frames(
+            frame_data_active[~nan_rows], pos_data_active[~nan_rows], clid_vals_unique[~nan_rows]
+        )
+        return self._tracked_events_to_image(
+            x, frame_data_active[~nan_rows], pos_data_active[~nan_rows], tracked_events
+        )
+
+    def _tracked_events_to_image(self, x, frame_data, pos_data, tracked_events):
+        out_img = np.zeros_like(x)
+        for frame, idx, event_out in zip(frame_data, pos_data, tracked_events):
+            out_img[frame.astype(np.int32), idx[0].astype(np.int32), idx[1].astype(np.int32)] = event_out
+        return out_img
 
 
 def _link(
@@ -398,6 +453,70 @@ def _link(
             # propagate cluster id from previous frame
             output[((current_frame_mask) & (output == cluster))] = prev_cluster_nbr_all
     return None
+
+
+def _image_parser(image: np.ndarray, dims: str = "TXY") -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Converts a 2d image series to input that can be accepted by the ARCOS event detection function
+    with columns for x, y, and intensity.
+    Arguments:
+        image (np.ndarray): Image to convert. Assumes first axis is t and the two last axes are y and x.
+        dims (str): String of dimensions in order. Default is "TXY". Possible values are "T", "X", "Y", and "Z".
+    Returns (tuple[np.ndarray, np.ndarray, np.ndarray]): Tuple of arrays with coordinates, measurements,
+        and frame numbers.
+    """
+    available_dims = ["T", "X", "Y", "Z"]
+    dims_list = list(dims.upper())
+
+    for i in dims_list:
+        if i not in dims_list:
+            raise ValueError(f"Invalid dimension {i}. Must be 'T', 'X', 'Y', or 'Z'.")
+
+    if len(dims_list) > len(set(dims_list)):
+        raise ValueError("Duplicate dimensions in dims.")
+
+    if len(dims_list) != image.ndim:
+        raise ValueError(
+            f"Length of dims must be equal to number of dimensions in image. Image has {image.ndim} dimensions."
+        )
+
+    dims_dict = {i: dims_list.index(i) for i in available_dims if i in dims_list}
+    coordinates_in_image = len([i for i in dims_list if i != "T"])
+
+    output_shape = 1
+    for shape in image.shape:
+        output_shape *= shape
+
+    if dims_dict["T"] != 0:
+        image_reshaped = np.moveaxis(image, dims_dict["T"], 0)
+    else:
+        image_reshaped = image
+
+    coordinates_array_out = np.zeros((output_shape, coordinates_in_image))
+    meas_array_out = np.zeros((output_shape,))
+    frame_array_out = np.zeros((output_shape,))
+
+    for idx, img_data in enumerate(image_reshaped):
+
+        coordinates_array = np.moveaxis(np.indices(img_data.shape), 0, coordinates_in_image).reshape(
+            (-1, coordinates_in_image)
+        )
+        meas_array = img_data.flatten()
+        frame_array = np.repeat(idx, coordinates_array.shape[0])
+
+        index_shape = 1
+        for shape in img_data.shape:
+            index_shape *= shape
+        out_indexer_from = index_shape * idx
+        out_indexer_to = index_shape * (idx + 1)
+        coordinates_array_out[out_indexer_from:out_indexer_to, :] = coordinates_array
+        meas_array_out[
+            out_indexer_from:out_indexer_to,
+        ] = meas_array
+        frame_array_out[
+            out_indexer_from:out_indexer_to,
+        ] = frame_array
+
+    return coordinates_array_out, meas_array_out, frame_array_out
 
 
 def _nearest_neighbour_eps(
