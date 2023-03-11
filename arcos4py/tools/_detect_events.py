@@ -7,7 +7,12 @@ Example:
 """
 from __future__ import annotations
 
+import atexit
+import gc
 import os
+import shutil
+import tempfile
+import time
 import warnings
 from typing import Any, Union
 
@@ -19,6 +24,10 @@ from matplotlib import pyplot as plt
 from scipy.spatial import KDTree
 from sklearn.cluster import DBSCAN
 from tqdm import tqdm
+
+RM_SUBDIRS_N_RETRY = 5
+RM_SUBDIRS_RETRY_TIME = 0.1
+TEMPFILE_REGISTRY_NAME = 'arcos4py_tempfiles_registry'
 
 
 def _dbscan(x: np.ndarray, eps: float, minClSz: int) -> np.ndarray:
@@ -291,57 +300,100 @@ class detectCollev:
         Returns:
             np.ndarray: Tracked collective event ids.
         """
-        assert frame_data.shape[0] == pos_data.shape[0] == colid_data.shape[0]
-        unique_frame_vals = np.unique(frame_data, return_index=False)
-        folder = './joblib_memmap'
-        try:
-            os.mkdir(folder)
-        except FileExistsError:
-            pass
+        tempfile_reg_path = self._clean_previous_mmaps()
 
-        data_filename_memmap = os.path.join(folder, 'data_memmap')
-        dump(colid_data, data_filename_memmap)
-        data_memmap = load(data_filename_memmap, mmap_mode='w+')
+        # due to premission errors or if the program unexpectedly crashes,
+        # the cleanup of the temporary directory created by tempfile.TemporaryDirectory
+        # is not always successful, therefore we ignore the errors
+        # and clean up the temporary directory manually
+        # if the cleanup fails, the script will attempt to remove the temporary directory
+        # on the next run by keeping track of the temporary directory path in a logfile
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
 
-        # loop over all frames to link detected clusters iteratively
-        with Parallel(n_jobs=self.n_jobs) as parallel:
-            for t in tqdm(unique_frame_vals[1:], disable=not self.show_progress):
-                prev_frame_mask = (frame_data >= (t - self.nPrev)) & (frame_data < t)
-                current_frame_mask = frame_data == t
-                prev_frame_colid = data_memmap[prev_frame_mask]
-                current_frame_colid = data_memmap[current_frame_mask]
-                prev_frame_pos_data = pos_data[prev_frame_mask]
-                current_frame_pos_data = pos_data[current_frame_mask]
-                kdtree_prevframe = KDTree(data=prev_frame_pos_data)
-                # only continue if objects were detected in previous frame
-                if prev_frame_colid.size:
-                    current_frame_colid_unique = np.unique(current_frame_colid, return_index=False)
-                    # loop over unique cluster in frame
-                    parallel(
-                        delayed(_link)(
-                            data_memmap,
-                            propagation_threshold,
-                            current_frame_mask,
-                            prev_frame_colid,
-                            current_frame_colid,
-                            current_frame_pos_data,
-                            kdtree_prevframe,
-                            cluster,
-                            self.epsPrev,
-                        )
-                        for cluster in (current_frame_colid_unique)
-                    )
+            memmap_folder = tmpdir
+            assert frame_data.shape[0] == pos_data.shape[0] == colid_data.shape[0]
 
-        consecutive_collids = np.unique(data_memmap, return_inverse=True)[1] + 1
-        del data_memmap  # make sure its garbage collected and the file is deleted
-        # del colid_memmap
-        import shutil
+            if self.n_jobs == 1:
+                # only one job, no need for memmap
+                _collid_data_paralell = colid_data
+            else:
+                # use memmap to share data between processes,
+                # this is necessary for parallelization of cluster linking
+                data_filename_memmap = os.path.join(memmap_folder, 'data_memmap')
+                # save data to memmap
+                dump(colid_data, data_filename_memmap)
+                # replace data with memmap
+                _collid_data_paralell = load(data_filename_memmap, mmap_mode='w+')
+            try:
+                unique_frame_vals = np.unique(frame_data, return_index=False)
+                # loop over all frames to link detected clusters iteratively
+                with Parallel(n_jobs=self.n_jobs) as parallel:
+                    for t in tqdm(unique_frame_vals[1:], disable=not self.show_progress):
+                        prev_frame_mask = (frame_data >= (t - self.nPrev)) & (frame_data < t)
+                        current_frame_mask = frame_data == t
+                        prev_frame_colid = _collid_data_paralell[prev_frame_mask]
+                        current_frame_colid = _collid_data_paralell[current_frame_mask]
+                        prev_frame_pos_data = pos_data[prev_frame_mask]
+                        current_frame_pos_data = pos_data[current_frame_mask]
+                        kdtree_prevframe = KDTree(data=prev_frame_pos_data)
+                        # only continue if objects were detected in previous frame
+                        if prev_frame_colid.size:
+                            current_frame_colid_unique = np.unique(current_frame_colid, return_index=False)
+                            # loop over unique cluster in frame
+                            parallel(
+                                delayed(_link)(
+                                    _collid_data_paralell,
+                                    propagation_threshold,
+                                    current_frame_mask,
+                                    prev_frame_colid,
+                                    current_frame_colid,
+                                    current_frame_pos_data,
+                                    kdtree_prevframe,
+                                    cluster,
+                                    self.epsPrev,
+                                )
+                                for cluster in (current_frame_colid_unique)
+                            )
+            except KeyboardInterrupt as e:
+                # make sure its garbage collected and the file is deleted
+                # if i dont do this the memmap file might not be deleted
+                del _collid_data_paralell
+                gc.collect()
+                delete_folder(memmap_folder, tempfile_reg_path)
+                raise e
 
-        try:
-            shutil.rmtree(folder)
-        except:  # noqa
-            warnings.warn('Could not delete joblib memmap folder.')
+            consecutive_collids = np.unique(_collid_data_paralell, return_inverse=True)[1] + 1  # noqa F821
+            # make sure its garbage collected and the file is deleted
+            # if i dont do this the memmap file might not be deleted
+            try:
+                del _collid_data_paralell  # noqa F821
+            except NameError:
+                pass
+            gc.collect()
+
+        delete_folder(memmap_folder, tempfile_reg_path)
         return consecutive_collids
+
+    def _clean_previous_mmaps(self):
+        """Deletes previous temporary files created by memmap.
+
+        If the temporary files cannot be deleted due to missing permissions,
+        this funciton will try to delete the files on the next run.
+        """
+        temporary_files_directory = tempfile.gettempdir()
+        tempfile_reg_path = os.path.join(temporary_files_directory, TEMPFILE_REGISTRY_NAME)
+        if os.path.exists(tempfile_reg_path):
+            with open(tempfile_reg_path, 'r') as f:
+                lines = f.readlines()
+            os.unlink(tempfile_reg_path)
+        else:
+            lines = []
+
+        for line in lines:
+            line = line.strip()
+            if os.path.exists(line):
+                delete_folder(line, tempfile_reg_path)
+        return tempfile_reg_path
 
     def _sort_input_dataframe(self, x: pd.DataFrame, frame_col: str, object_id_col: str | None) -> pd.DataFrame:
         """Sorts the input dataframe according to the frame column and track id column if available."""
@@ -408,7 +460,7 @@ class detectCollev:
             x = self.input_data.copy()
         else:
             x = self.input_data
-        pos_data, meas_data, frame_data = _image_parser(x, dims=self.dims)
+        pos_data, meas_data, frame_data, dims_dict = _image_parser(x, dims=self.dims)
         frame_data_active, pos_data_active = self._filter_active_arrays(frame_data, pos_data, meas_data)
         clid_vals = self._run_dbscan(frame_data=frame_data_active, pos_data=pos_data_active, n_jobs=self.n_jobs)
         clid_vals_unique = self._make_db_id_unique(
@@ -419,13 +471,27 @@ class detectCollev:
             frame_data_active[~nan_rows], pos_data_active[~nan_rows], clid_vals_unique[~nan_rows]
         )
         return self._tracked_events_to_image(
-            x, frame_data_active[~nan_rows], pos_data_active[~nan_rows], tracked_events
+            x, frame_data_active[~nan_rows], pos_data_active[~nan_rows], tracked_events, dims_dict
         )
 
-    def _tracked_events_to_image(self, x, frame_data, pos_data, tracked_events):
+    def _tracked_events_to_image(self, x, frame_data, pos_data, tracked_events, dims_dict):
+        # create empty image
         out_img = np.zeros_like(x)
-        for frame, idx, event_out in zip(frame_data, pos_data, tracked_events):
-            out_img[frame.astype(np.int32), idx[0].astype(np.int32), idx[1].astype(np.int32)] = event_out
+        # transpose image to correct order so values can be assigned
+        transposition_order = tuple(dims_dict.values())
+        out_img = np.transpose(out_img, transposition_order)
+        frame_data = frame_data.astype(np.int32)
+        pos_data = pos_data.astype(np.int32)
+        if pos_data.shape[1] == 1:
+            out_img[frame_data, pos_data] = tracked_events
+        elif pos_data.shape[1] == 2:
+            out_img[frame_data, pos_data[:, 0], pos_data[:, 1]] = tracked_events
+        elif pos_data.shape[1] == 3:
+            out_img[frame_data, pos_data[:, 0], pos_data[:, 1], pos_data[:, 2]] = tracked_events
+        else:
+            raise ValueError("Dimension of input array not supported.")
+        # transpose image back to original order
+        out_img = np.transpose(out_img, np.argsort(transposition_order))
         return out_img
 
 
@@ -455,11 +521,11 @@ def _link(
     return None
 
 
-def _image_parser(image: np.ndarray, dims: str = "TXY") -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def _image_parser(image: np.ndarray, dims: str = "TXY") -> tuple[np.ndarray, np.ndarray, np.ndarray, dict[str, int]]:
     """Converts a 2d image series to input that can be accepted by the ARCOS event detection function
     with columns for x, y, and intensity.
     Arguments:
-        image (np.ndarray): Image to convert. Assumes first axis is t and the two last axes are y and x.
+        image (np.ndarray): Image to convert. Will be coerced to int32.
         dims (str): String of dimensions in order. Default is "TXY". Possible values are "T", "X", "Y", and "Z".
     Returns (tuple[np.ndarray, np.ndarray, np.ndarray]): Tuple of arrays with coordinates, measurements,
         and frame numbers.
@@ -467,6 +533,7 @@ def _image_parser(image: np.ndarray, dims: str = "TXY") -> tuple[np.ndarray, np.
     available_dims = ["T", "X", "Y", "Z"]
     dims_list = list(dims.upper())
 
+    # check input
     for i in dims_list:
         if i not in dims_list:
             raise ValueError(f"Invalid dimension {i}. Must be 'T', 'X', 'Y', or 'Z'.")
@@ -482,18 +549,21 @@ def _image_parser(image: np.ndarray, dims: str = "TXY") -> tuple[np.ndarray, np.
     dims_dict = {i: dims_list.index(i) for i in available_dims if i in dims_list}
     coordinates_in_image = len([i for i in dims_list if i != "T"])
 
+    # calculate output shape
     output_shape = 1
     for shape in image.shape:
         output_shape *= shape
 
-    if dims_dict["T"] != 0:
-        image_reshaped = np.moveaxis(image, dims_dict["T"], 0)
-    else:
-        image_reshaped = image
-
+    # initialize output arrays
     coordinates_array_out = np.zeros((output_shape, coordinates_in_image))
     meas_array_out = np.zeros((output_shape,))
     frame_array_out = np.zeros((output_shape,))
+
+    # convert to int32
+    image = image.astype(np.int32)
+
+    # transpose image to match order TXYZ
+    image_reshaped = np.transpose(image, tuple(dims_dict.values()))
 
     for idx, img_data in enumerate(image_reshaped):
 
@@ -516,7 +586,7 @@ def _image_parser(image: np.ndarray, dims: str = "TXY") -> tuple[np.ndarray, np.
             out_indexer_from:out_indexer_to,
         ] = frame_array
 
-    return coordinates_array_out, meas_array_out, frame_array_out
+    return coordinates_array_out, meas_array_out, frame_array_out, dims_dict
 
 
 def _nearest_neighbour_eps(
@@ -665,3 +735,40 @@ def estimate_eps(
         plt.show()
 
     return eps
+
+
+# utility functoin to delete memmap folder copied from joblib
+def delete_folder(folder_path, temp_file_registry):
+    """Utility function to cleanup a temporary folder if it still exists."""
+    if os.path.isdir(folder_path):
+        # allow the rmtree to fail once, wait and re-try.
+        # if the error is raised again, fail
+        err_count = 0
+        while True:
+            try:
+                shutil.rmtree(folder_path, False, None)
+                break
+            except (OSError, WindowsError):
+                err_count += 1
+                if err_count > RM_SUBDIRS_N_RETRY:
+                    warnings.warn(f"Unable to delete folder {folder_path} after {RM_SUBDIRS_N_RETRY} tentatives.")
+                    # keep trackof the folders that could not be deleted in a file located the temporary directory
+                    # and try to delete them the next time the program is run
+                    with open(temp_file_registry, "a") as f:
+                        f.write(f"{folder_path}")
+                        f.write("\n")
+                    break
+
+                time.sleep(RM_SUBDIRS_RETRY_TIME)
+
+
+def _remove_folder_if_unable_to_delete(folder):
+    """Remove a folder if it is not possible to delete it."""
+    if os.path.isdir(folder):
+        try:
+            shutil.rmtree(folder, False, None)
+        except (OSError, WindowsError):
+            warnings.warn(f"Unable to delete folder {folder}. " "The folder will be deleted at the end of the program.")
+            # keep trackof the folders that could not be deleted
+            # and try to delete them at the end of the program
+            atexit.register(_remove_folder_if_unable_to_delete, folder)
