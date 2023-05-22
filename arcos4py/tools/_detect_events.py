@@ -7,17 +7,33 @@ Example:
 """
 from __future__ import annotations
 
-from functools import partial
-from typing import Any, Union
+import functools
+import warnings
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from typing import Any, Callable, Generator, Union
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from hdbscan import HDBSCAN
 from kneed import KneeLocator
-from matplotlib import pyplot as plt
 from scipy.spatial import KDTree
 from sklearn.cluster import DBSCAN
 from tqdm import tqdm
+
+AVAILABLE_CLUSTERING_METHODS = ['dbscan', 'hdbscan']
+
+# implement a new event tracking algorithm that will be able to track events from images directly
+# the current implementation in the arcos4py package is only able to track events from dataframes
+# the new implementation will be able to track events from both dataframes and images
+# by implementing the tracking in a generator style with a linker function
+# it should also reduce the memory usage of the algorithm
+
+
+def _group_data(frame_data):
+    unique_frame_vals, unique_frame_indices = np.unique(frame_data, axis=0, return_index=True)
+    return unique_frame_vals.astype(np.int32), unique_frame_indices[1:]
 
 
 def _dbscan(x: np.ndarray, eps: float, minClSz: int, n_jobs: int = 1) -> np.ndarray:
@@ -30,7 +46,7 @@ def _dbscan(x: np.ndarray, eps: float, minClSz: int, n_jobs: int = 1) -> np.ndar
         list[np.ndarray]: list with added collective id column detected by DBSCAN.
     """
     if x.size:
-        db_array = DBSCAN(eps=eps, min_samples=minClSz, algorithm="kd_tree", n_jobs=1).fit(x)
+        db_array = DBSCAN(eps=eps, min_samples=minClSz, algorithm="kd_tree", n_jobs=n_jobs).fit(x)
         cluster_labels = db_array.labels_
         cluster_list = np.where(cluster_labels > -1, cluster_labels + 1, np.nan)
         return cluster_list
@@ -64,168 +80,259 @@ def _hdbscan(
     return np.empty((0, 0))
 
 
-class detectCollev:
-    """Identifies and tracks collective signalling events.
+# @profile
+def brute_force_linking(
+    cluster_labels,
+    cluster_coordinates,
+    memory_cluster_labels,
+    memory_kdtree: KDTree,
+    propagation_threshold,
+    epsPrev,
+    max_cluster_label,
+    n_jobs,
+):
+    # calculate nearest neighbour between previoius and current frame
+    nn_dist, nn_indices = memory_kdtree.query(cluster_coordinates, k=1, workers=n_jobs)
+    prev_cluster_labels = memory_cluster_labels[nn_indices]
+    prev_cluster_labels_eps = prev_cluster_labels[(nn_dist <= epsPrev)]
+    # only continue if neighbours
+    # were detected within eps distance
+    if prev_cluster_labels_eps.size < propagation_threshold:
+        max_cluster_label += 1
+        return np.repeat(max_cluster_label, cluster_labels.size), max_cluster_label
 
-    Requires binarized measurement column.
-    Makes use of the dbscan algorithm,
-    applies this to every timeframe and subsequently connects
-    collective events between frames located within eps distance of each other.
+    prev_clusternbr_eps_unique = np.unique(prev_cluster_labels_eps, return_index=False)
 
-    Attributes:
-        input_data (DataFrame): Input data to be processed. Must contain a binarized measurement column.
-        eps (float): The maximum distance between two samples for one to be considered as in
-            the neighbourhood of the other.
-            This is not a maximum bound on the distances of points within a cluster.
-        epsPrev (float | None): Frame to frame distance, value is used to connect
-            collective events across multiple frames.If "None", same value as eps is used.
-        minClSz (int): Minimum size for a cluster to be identified as a collective event.
-        nPrev (int): Number of previous frames the tracking
-            algorithm looks back to connect collective events.
-        posCols (list): List of position columns contained in the data.
-            Must at least contain one
-        frame_column (str): Indicating the frame column in input_data.
-        id_column (str | None): Indicating the track id/id column in input_data.
-        bin_meas_column (str): Indicating the bin_meas_column in input_data or None.
-        clid_column (str): Indicating the column name containing the ids of collective events.
-    """
+    if prev_clusternbr_eps_unique.size == 0:
+        max_cluster_label += 1
+        return np.repeat(max_cluster_label, cluster_labels.size), max_cluster_label
 
+    # propagate cluster id from previous frame
+    cluster_labels = prev_cluster_labels
+    return cluster_labels, max_cluster_label
+
+
+@dataclass
+class memory:
+    n_timepoints: int = 1
+    coordinates: list[np.ndarray] = field(default_factory=lambda: [], init=False)
+    prev_cluster_ids: list[np.ndarray] = field(default_factory=lambda: [], init=False)
+    max_prev_cluster_id: int = 0
+
+    def update(self, new_coordinates, new_cluster_ids):
+        if len(self.coordinates) == self.n_timepoints:
+            self.coordinates.pop(0)
+            self.prev_cluster_ids.pop(0)
+        self.coordinates.append(new_coordinates)
+        self.prev_cluster_ids.append(new_cluster_ids)
+
+    @property
+    def all_coordinates(self):
+        if len(self.coordinates) > 1:
+            return np.concatenate(self.coordinates)
+        return self.coordinates[0]
+
+    @property
+    def all_cluster_ids(self):
+        if len(self.prev_cluster_ids) > 1:
+            return np.concatenate(self.prev_cluster_ids)
+        return self.prev_cluster_ids[0]
+
+
+# this class will act as the linker between frames
+# it will store the previous n frames and propagate cluster ids from those to the current frame if they are close enough
+# it will also update the memory with the current frame and remove the oldest frame
+# memory will be a list of arrays, each array containing the cluster ids for each point in the frame
+class Linker:
     def __init__(
         self,
-        input_data: pd.DataFrame | np.ndarray,
         eps: float = 1,
-        epsPrev: Union[float, None] = None,
+        epsPrev: int | None = None,
         minClSz: int = 1,
+        minSamples: int = 1,
+        clusteringMethod: str | Callable = "dbscan",
+        propagationThreshold: int = 1,
         nPrev: int = 1,
-        posCols: list = ["x"],
-        frame_column: str = 'time',
-        id_column: Union[str, None] = None,
-        bin_meas_column: Union[str, None] = 'meas',
-        clid_column: str = 'clTrackID',
-        dims: str = "TXY",
-        method: str = "dbscan",
-        min_samples: None | int = None,
-        cluster_selection_method: str = "leaf",
-        n_jobs: int = 1,
-        show_progress: bool = True,
-    ) -> None:
-        """Constructs class with input parameters.
-
-        Arguments:
-            input_data (DataFrame): Input data to be processed. Must contain a binarized measurement column.
-            eps (float): The maximum distance between two samples for one to be considered as in
-                the neighbourhood of the other.
-                This is not a maximum bound on the distances of points within a cluster.
-            epsPrev (float | None): Frame to frame distance, value is used to connect
-                collective events across multiple frames.If "None", same value as eps is used.
-            minClSz (int): Minimum size for a cluster to be identified as a collective event.
-            nPrev (int): Number of previous frames the tracking
-                algorithm looks back to connect collective events.
-            posCols (list): List of position columns contained in the data.
-                Must at least contain one.
-            frame_column (str): Indicating the frame column in input_data.
-            id_column (str | None): Indicating the track id/id column in input_data, optional.
-            bin_meas_column (str): Indicating the bin_meas_column in input_data or None.
-            clid_column (str): Indicating the column name containing the ids of collective events.
-            n_jobs (int): Number of paralell workers to spawn, -1 uses all available cpus.
-            show_progress (bool): If True, shows progress bar.
-        """
-        # assign some variables passed in as arguments to the object
-        self.input_data = input_data
-        self.eps = eps
-        if epsPrev:
-            self.epsPrev = epsPrev
-        else:
+        nJobs: int = 1,
+    ):
+        self._memory = memory(n_timepoints=nPrev)
+        self._nn_tree: KDTree | None = None
+        self.propagation_threshold = propagationThreshold
+        if epsPrev is None:
             self.epsPrev = eps
-        self.minClSz = minClSz
-        self.nPrev = nPrev
+        else:
+            self.epsPrev = epsPrev
+        self.n_jobs = nJobs
+        self._validate_input(eps, epsPrev, minClSz, minSamples, clusteringMethod, propagationThreshold, nPrev, nJobs)
+
+        self.event_ids = np.empty((0, 0))
+        self.max_prev_event_id = 0
+
+        if hasattr(clusteringMethod, '__call__'):  # check if it's callable
+            self.clustering_function = clusteringMethod
+        else:
+            if clusteringMethod == "dbscan":
+                self.clustering_function = functools.partial(_dbscan, eps=eps, minClSz=minClSz)
+            elif clusteringMethod == "hdbscan":
+                self.clustering_function = functools.partial(
+                    _hdbscan, eps=eps, minClSz=minClSz, min_samples=minSamples, cluster_selection_method='leaf'
+                )
+            else:
+                raise ValueError(
+                    f'Clustering method must be either in {AVAILABLE_CLUSTERING_METHODS} or a callable with data as the only argument an argument'  # noqa E501
+                )
+
+    def _validate_input(self, eps, epsPrev, minClSz, minSamples, clusteringMethod, propagationThreshold, nPrev, nJobs):
+        if not isinstance(eps, (int, float, str)):
+            raise ValueError(f"eps must be a number or None, got {eps}")
+        if not isinstance(epsPrev, (int, type(None))):
+            raise ValueError(f"epsPrev must be a number or None, got {epsPrev}")
+        for i in [minClSz, minSamples, propagationThreshold, nPrev, nJobs]:
+            if not isinstance(i, int):
+                raise ValueError(f"{i} must be an int, got {i}")
+        if not isinstance(clusteringMethod, str):
+            raise ValueError(f"clusteringMethod must be a string, got {clusteringMethod}")
+
+    # @profile
+    def _clustering(self, x):
+        if x.size == 0:
+            return np.empty((0,), dtype=np.int64), x, np.empty((0, 1), dtype=bool)
+        clusters = self.clustering_function(x)
+        nanrows = np.isnan(clusters)
+        return clusters[~nanrows], x[~nanrows], nanrows
+
+    # @profile
+    def _link_next_cluster(self, cluster: np.ndarray, cluster_coordinates: np.ndarray):
+        linked_clusters, max_cluster_label = brute_force_linking(
+            cluster_labels=cluster,
+            cluster_coordinates=cluster_coordinates,
+            memory_cluster_labels=self._memory.all_cluster_ids,
+            memory_kdtree=self._nn_tree,
+            propagation_threshold=self.propagation_threshold,
+            epsPrev=self.epsPrev,
+            max_cluster_label=self._memory.max_prev_cluster_id,
+            n_jobs=self.n_jobs,
+        )
+        self._memory.max_prev_cluster_id = max_cluster_label
+        return linked_clusters
+
+    def _update_tree(self, coords):
+        self._nn_tree = KDTree(coords)
+
+    def _group_by_clusterid(self, cluster_ids, coordinates):
+        cluster_ids_sort_key = np.argsort(cluster_ids)
+        cluster_ids_sorted = cluster_ids[cluster_ids_sort_key]
+        coordinates_sorted = coordinates[cluster_ids_sort_key]
+        _, group_by_cluster_id = _group_data(cluster_ids_sorted)
+        grouped_clusters = np.split(cluster_ids_sorted, group_by_cluster_id)
+        grouped_coordinates = np.split(coordinates_sorted, group_by_cluster_id)
+        return cluster_ids_sort_key, grouped_clusters, grouped_coordinates
+
+    # @profile
+    def link(self, input_coordinates: np.ndarray):
+        cluster_ids, coordinates, nanrows = self._clustering(input_coordinates)
+        # check if first frame
+        if not len(self._memory.prev_cluster_ids):
+            linked_cluster_ids = self._update_id_empty(cluster_ids)
+        # check if anything was detected in current or previous frame
+        elif cluster_ids.size == 0 or self._memory.all_cluster_ids.size == 0:
+            linked_cluster_ids = self._update_id_empty(cluster_ids)
+        else:
+            linked_cluster_ids = self._update_id(cluster_ids, coordinates)
+
+        # update memory
+        self._memory.update(new_coordinates=coordinates, new_cluster_ids=linked_cluster_ids)
+
+        event_ids = np.full_like(nanrows, -1, dtype=np.int64)
+        event_ids[~nanrows] = linked_cluster_ids
+        self.event_ids = event_ids
+
+    # @profile
+    def _update_id(self, cluster_ids, coordinates):
+        memory_coordinates = self._memory.all_coordinates
+        self._update_tree(memory_coordinates)
+        # group by cluster id
+        cluster_ids_sort_key, grouped_clusters, grouped_coordinates = self._group_by_clusterid(cluster_ids, coordinates)
+
+        # do linking
+        linked_cluster_ids = [
+            self._link_next_cluster(cluster, cluster_coordinates)
+            for cluster, cluster_coordinates in zip(grouped_clusters, grouped_coordinates)
+        ]
+        # restore original data order
+        revers_sort_key = np.argsort(cluster_ids_sort_key)
+        linked_cluster_ids = np.concatenate(linked_cluster_ids)[revers_sort_key]
+        return linked_cluster_ids
+
+    def _update_id_empty(self, cluster_ids):
+        linked_cluster_ids = cluster_ids + self._memory.max_prev_cluster_id
+        try:
+            self._memory.max_prev_cluster_id = np.nanmax(linked_cluster_ids)
+        except ValueError:
+            pass
+        return linked_cluster_ids
+
+
+# this class will act as the abstract base class for the event tracker
+# it will implement the track method which returns a generator that can be looped over
+# the calsses DataFrameEventTracker and ArrayEventTracker will inherit from this class
+# and implement the abstract track method
+class BaseTracker(ABC):
+    def __init__(self, linker: Linker):
+        self.linker = linker
+
+    @abstractmethod
+    def track_iteration(self, data):
+        pass
+
+    @abstractmethod
+    def track(self, data: Union[pd.DataFrame, np.ndarray]) -> Generator:
+        pass
+
+
+# this class will implement event tracking for dataframes, this is the current implementatoin in the arcos4py package
+# it will also do input validation and filtering of the data
+class DataFrameTracker(BaseTracker):
+    def __init__(
+        self,
+        linker: Linker,
+        coordinates_column: list[str],
+        frame_column: str,
+        id_column: str | None = None,
+        bin_meas_column: str | None = None,
+        collid_column: str = 'clTrackID',
+    ):
+        super().__init__(linker)
+        self.coordinates_column = coordinates_column
         self.frame_column = frame_column
         self.id_column = id_column
         self.bin_meas_column = bin_meas_column
-        self.n_jobs = n_jobs
-        self.show_progress = show_progress
+        self.collid_column = collid_column
+        self._validate_input(coordinates_column, frame_column, id_column, bin_meas_column, collid_column)
 
-        self.clid_column = clid_column
-        self.posCols = posCols
-        self.clidFrame = f'{clid_column}.frame'
-        self.dims = dims
-        self.method = method
-        if min_samples is None:
-            self.min_samples = minClSz
-        else:
-            self.min_samples = min_samples
-        self.cluster_selection_method = cluster_selection_method
+    def _validate_input(
+        self,
+        coordinates_column: list[str],
+        frame_column: str,
+        id_column: str | None,
+        bin_meas_column: str | None,
+        collid_column: str,
+    ):
+        necessray_cols: list[Any] = [frame_column, collid_column]
+        necessray_cols.extend(coordinates_column)
+        optional_cols: list[Any] = [id_column, bin_meas_column]
 
-        if method == "dbscan":
-            self.clustering_method = partial(_dbscan, eps=eps, minClSz=minClSz)
-        elif method == "hdbscan":
-            self.clustering_method = partial(
-                _hdbscan, eps=eps, minClSz=minClSz, min_samples=self.min_samples, cluster_selection_method='leaf'
-            )
+        for col in necessray_cols:
+            if not isinstance(col, str):
+                raise TypeError(f'Column names must be of type str, {col} given.')
 
-        # run input checks
-        self._run_input_checks()
-
-    def _check_input_data(self):
-        """Checks if input contains data\
-        raises error if not."""
-        if self.input_data is None:
-            raise ValueError("Input is None")
-        if isinstance(self.input_data, pd.DataFrame):
-            if self.input_data.empty:
-                raise ValueError("Input is empty")
-        if isinstance(self.input_data, np.ndarray):
-            if self.input_data.size == 0:
-                raise ValueError("Input is empty")
-
-    def _check_pos_columns(self):
-        """Checks if Input contains correct columns\
-        raises Exception if not."""
-        if not isinstance(self.input_data, pd.DataFrame):
-            return
-        if not all(item in self.input_data.columns for item in self.posCols):
-            raise ValueError("Input data does not have the indicated position columns!")
-
-    def _check_frame_column(self):
-        if not isinstance(self.input_data, pd.DataFrame):
-            return
-        if self.frame_column not in self.input_data.columns:
-            raise ValueError("Input data does not have the indicated frame column!")
-
-    def _check_eps(self):
-        """Checks if eps is greater than 0."""
-        if self.method == "dbscan":
-            if self.eps < 0:
-                raise ValueError("Parameter eps has to be greater than 0")
-
-    def _check_epsPrev(self):
-        """Checks if frame to frame distance is greater than 0."""
-        if self.epsPrev <= 0:
-            raise ValueError("Parameter epsPrev has to be greater than 0 or None")
-
-    def _check_minClSz(self):
-        """Checks if minClSiz is greater than 0."""
-        if self.minClSz <= 0:
-            raise ValueError("Parameter minClSiz has to be an integer greater than 0!")
-
-    def _check_nPrev(self):
-        """Checks if nPrev is greater than 0."""
-        if self.nPrev <= 0 and isinstance(self.nPrev, int):
-            raise ValueError("Parameter nPrev has to be an integer greater than 0!")
-
-    def _run_input_checks(self):
-        """Run input checks."""
-        self._check_input_data()
-        self._check_pos_columns()
-        self._check_eps()
-        self._check_minClSz()
-        self._check_nPrev()
-        self._check_frame_column()
+        for col in optional_cols:
+            if not isinstance(col, (str, type(None))):
+                raise TypeError(f'Column names must be of type str or None, {col} given.')
 
     def _select_necessary_columns(
         self,
         data: pd.DataFrame,
-        frame_col: str,
         pos_col: list[str],
     ) -> tuple[np.ndarray, np.ndarray]:
         """Select necessary input colums from input data and returns them as numpy arrays.
@@ -238,11 +345,20 @@ class detectCollev:
         Returns:
             np.ndarray, np.ndarray: Filtered columns necessary for calculation.
         """
-        frame_column_np = data[frame_col].to_numpy()
         pos_columns_np = data[pos_col].to_numpy()
-        return frame_column_np, pos_columns_np
+        if pos_columns_np.ndim == 1:
+            pos_columns_np = pos_columns_np[:, np.newaxis]
+        return pos_columns_np
 
-    def _filter_active_dataframe(self, data: pd.DataFrame, bin_meas_col: Union[str, None]) -> pd.DataFrame:
+    def _sort_input(self, x: pd.DataFrame, frame_col: str, object_id_col: str | None) -> pd.DataFrame:
+        """Sorts the input dataframe according to the frame column and track id column if available."""
+        if object_id_col:
+            x = x.sort_values([frame_col, object_id_col]).reset_index(drop=True)
+        else:
+            x = x.sort_values([frame_col]).reset_index(drop=True)
+        return x
+
+    def _filter_active(self, data: pd.DataFrame, bin_meas_col: Union[str, None]) -> pd.DataFrame:
         """Selects rows with binary value of greater than 0.
 
         Arguments:
@@ -256,9 +372,67 @@ class detectCollev:
             data = data[data[bin_meas_col] > 0]
         return data
 
-    def _filter_active_arrays(
-        self, frame_data: np.ndarray, pos_data: np.ndarray, bin_meas_data: np.ndarray
-    ) -> tuple[np.ndarray, np.ndarray]:
+    # @profile
+    def track_iteration(self, x: pd.DataFrame):
+        x_filtered = self._filter_active(x, self.bin_meas_column)
+
+        coordinates_data = self._select_necessary_columns(
+            x_filtered,
+            self.coordinates_column,
+        )
+        self.linker.link(coordinates_data)
+
+        if self.collid_column in x.columns:
+            df_out = x_filtered.drop(columns=[self.collid_column]).copy()
+        else:
+            df_out = x_filtered.copy()
+        event_ids = self.linker.event_ids
+
+        if not event_ids.size:
+            df_out[self.collid_column] = 0
+            return df_out
+
+        df_out[self.collid_column] = self.linker.event_ids
+        return df_out
+
+    def track(self, x: pd.DataFrame) -> Generator:
+        if x.empty:
+            raise ValueError('Input is empty')
+        x_sorted = self._sort_input(x, frame_col=self.frame_column, object_id_col=self.id_column)
+
+        for t in range(x_sorted[self.frame_column].max() + 1):
+            x_frame = x_sorted.query(f'{self.frame_column} == {t}')
+            x_tracked = self.track_iteration(x_frame)
+            yield x_tracked
+
+
+# this class will implement event tracking for arrays,
+# this is the new implementation that will be added to the arcos4py package
+# it will also do input validation and filtering of the data
+# the purpose of this is to track data directly from images without having to convert them to dataframes first
+# it will implement an image_parser method and the track method
+class ImageTracker(BaseTracker):
+    def __init__(self, linker: Linker):
+        super().__init__(linker)
+
+    def _image_to_coordinates(self, image: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Converts a 2d image series to input that can be accepted by the ARCOS event detection function
+        with columns for x, y, and intensity.
+        Arguments:
+            image (np.ndarray): Image to convert. Will be coerced to int32.
+            dims (str): String of dimensions in order. Default is "TXY". Possible values are "T", "X", "Y", and "Z".
+        Returns (tuple[np.ndarray, np.ndarray, np.ndarray]): Tuple of arrays with coordinates, measurements,
+            and frame numbers.
+        """
+        # convert to int16
+        image = image.astype(np.uint16)
+
+        coordinates_array = np.moveaxis(np.indices(image.shape), 0, len(image.shape)).reshape((-1, len(image.shape)))
+        meas_array = image.flatten()
+
+        return coordinates_array, meas_array
+
+    def _filter_active(self, pos_data: np.ndarray, bin_meas_data: np.ndarray) -> tuple[np.ndarray]:
         """Selects rows with binary value of greater than 0.
 
         Arguments:
@@ -271,338 +445,189 @@ class detectCollev:
         """
         if bin_meas_data is not None:
             active = np.argwhere(bin_meas_data > 0).flatten()
-            frame_data = frame_data[active]
             pos_data = pos_data[active]
-        return frame_data, pos_data
+        return pos_data
 
-    def _group_data(self, frame_data):
-        unique_frame_vals, unique_frame_indices = np.unique(frame_data, axis=0, return_index=True)
-        return unique_frame_vals.astype(np.int32), unique_frame_indices[1:]
-
-    # @profile
-    def _run_dbscan(self, grouped_array) -> list[np.ndarray]:
-        """Apply dbscan method to every group i.e. frame. Assumes input data is sorted according to frame and id column.
-
-        Arguments:
-            frame_data (np.ndarray): frame column as a numpy array.
-            pos_data (str): positions/coordinate columns as a numpy array.
-            n_jobs (str): Number of workers to spawn, -1 uses all available cpus.
-
-        Returns:
-            list[np.ndarray]: list of arrays containing collective id column detected by DBSCAN for every frame.
-        """
-        # map dbscan to grouped_array
-        out = [self.clustering_method(x=i) for i in tqdm(grouped_array, disable=not self.show_progress)]
-        return out
-
-    def _make_db_id_unique(self, x: list[np.ndarray]) -> list[np.ndarray]:
-        """Make db_scan cluster id labels unique by adding the\
-        cummulative sum of previous group to next group.
-
-        Arguments:
-            x (DataFrame): list of arrays containing collective event ids.
-
-        Returns:
-            np.ndarray: Unique collective event ids.
-        """
-        max_array = [0] + [np.nanmax(i) if i.size != 0 and not np.isnan(i).all() else 0 for i in x]
-        max_array_cumsum = np.cumsum(np.nan_to_num(max_array))
-        x_unique = [np.add(value, max_array_cumsum[i]) for i, value in enumerate(x)]
-        return x_unique
-
-    # @profile
-    def _link_clusters_between_frames(
-        self, frame_data: np.ndarray, pos_data: np.ndarray, propagation_threshold: int = 1
-    ) -> np.ndarray:
-        """Tracks clusters detected with DBSCAN along a frame axis,\
-        returns tracked collective events as a pandas dataframe.
-
-        Arguments:
-            frame_data (np.ndarray): Array containing frame/timepoint data.
-            pos_data (np.ndarray): 2D array containing position coordinates of objects.
-            colid_data (np.ndarray): Collective evetn ids
-            propagation_threshold (int): Threshold for at least how many neighbours have to
-                be within eps to propagate the cluster id.
-
-        Returns:
-            np.ndarray: Tracked collective event ids.
-        """
-        assert frame_data.shape[0] == pos_data.shape[0], "Frame and position data must have the same length."
-
-        unique_frame_vals, group_by_cluster_id = self._group_data(frame_data)
-
-        grouped_pos_data = np.split(pos_data, group_by_cluster_id)
-
-        # due to premission errors or if the program unexpectedly crashes,
-        # the cleanup of the temporary directory created by tempfile.TemporaryDirectory
-        # is not always successful, therefore we ignore the errors
-        # and clean up the temporary directory manually
-        # if the cleanup fails, the script will attempt to remove the temporary directory
-        # on the next run by keeping track of the temporary directory path in a logfile
-
-        # loop over all frames to link detected clusters iteratively
-        colid_data = self._run_dbscan(grouped_pos_data)
-        colid_data = self._make_db_id_unique(colid_data)
-        # drop nan rows
-        nan_rows = [np.isnan(i) for i in colid_data]
-        grouped_pos_data = [p[~i] for p, i in zip(grouped_pos_data, nan_rows)]
-        colid_data = [c[~i] for c, i in zip(colid_data, nan_rows)]
-
-        for t in tqdm(range(unique_frame_vals[0], unique_frame_vals[-1] + 1), disable=not self.show_progress):
-            t_index = np.argwhere(unique_frame_vals == t).flatten()
-            prev_frame_vals = np.arange(t - self.nPrev, t, 1)
-            prev_frames_indices = np.argwhere(np.isin(unique_frame_vals, prev_frame_vals)).flatten()
-
-            # only continue if objects were detected in current frame
-            if t_index.size == 0:
-                continue
-            t_index = t_index[0]
-
-            # get current and prev frame data
-            if prev_frames_indices.size == 0:
-                continue
-            prev_frame_colid = np.concatenate([colid_data[i] for i in prev_frames_indices])
-            current_frame_colid = colid_data[t_index]
-
-            prev_frame_pos_data = np.concatenate([grouped_pos_data[i] for i in prev_frames_indices])
-            current_frame_pos_data = grouped_pos_data[t_index]
-
-            kdtree_prevframe = KDTree(data=prev_frame_pos_data)
-
-            # only continue if objects were detected in previous frame
-            if prev_frame_colid.size == 0:
-                continue
-
-            if current_frame_colid.size == 0:
-                continue
-
-            # current_frame_colid_unique = np.unique(current_frame_colid, return_index=False)
-            # loop over unique cluster in frame
-            current_frame_colid_sort_key = np.argsort(current_frame_colid)
-            # group by cluster id
-            current_frame_colid = current_frame_colid[current_frame_colid_sort_key]
-            current_frame_pos_data = current_frame_pos_data[current_frame_colid_sort_key]
-            _, group_by_cluster_id = self._group_data(current_frame_colid)
-            grouped_clusters = np.split(current_frame_colid, group_by_cluster_id)
-
-            grouped_pos_data_clusters = np.split(current_frame_pos_data, group_by_cluster_id)
-
-            _linking_func = partial(
-                _link,
-                propagation_threshold=propagation_threshold,
-                prev_frame_colid=prev_frame_colid,
-                kdtree_prevframe=kdtree_prevframe,
-                epsPrev=self.epsPrev,
-                n_jobs=self.n_jobs,
-            )
-
-            out = [
-                _linking_func(cluster=cluster, cluster_pos_data=pos_cluster)
-                for cluster, pos_cluster in zip(grouped_clusters, grouped_pos_data_clusters)
-            ]
-
-            revers_sort_key = np.argsort(current_frame_colid_sort_key)
-            colid_data[t_index] = np.concatenate(out)[revers_sort_key]
-
-        collid_data_merged = np.concatenate(colid_data)
-        consecutive_collids = np.unique(collid_data_merged, return_inverse=True)[1] + 1
-
-        return consecutive_collids, np.concatenate(nan_rows)
-
-    def _sort_input_dataframe(self, x: pd.DataFrame, frame_col: str, object_id_col: str | None) -> pd.DataFrame:
-        """Sorts the input dataframe according to the frame column and track id column if available."""
-        if object_id_col:
-            x = x.sort_values([frame_col, object_id_col]).reset_index(drop=True)
-        else:
-            x = x.sort_values([frame_col]).reset_index(drop=True)
-        return x
-
-    def run(self, copy: bool = True) -> pd.DataFrame:
-        """Method to execute the different steps necessary for tracking.
-
-        Arguments:
-            copy (bool): If True, the input data is copied before processing.
-                If False, the input data is modified in place. Default is True.
-
-        Returns:
-            DataFrame: Dataframe with tracked collective events is returned.
-
-        1. Selects columns.
-        2. filters data on binary column > 1.
-        3. Applies dbscan algorithm to every frame.
-        4. Makes cluster ids unique across frames.
-        5. Tracks collective events i.e. links cluster ids across frames.
-        6. Creates final DataFrame.
-        """
-        if isinstance(self.input_data, pd.DataFrame):
-            return self._dataframe_linking(self.input_data, copy)
-        elif isinstance(self.input_data, np.ndarray):
-            return self._array_linking(self.input_data, copy)
-
-    def _dataframe_linking(self, input_data, copy):
-        if copy:
-            x = input_data
-        else:
-            x = input_data
-        pos_cols_inputdata = [col for col in self.posCols if col in self.input_data.columns]
-        x_sorted = self._sort_input_dataframe(x, frame_col=self.frame_column, object_id_col=self.id_column)
-        x_filtered = self._filter_active_dataframe(x_sorted, self.bin_meas_column)
-        frame_data, pos_data = self._select_necessary_columns(
-            x_filtered,
-            self.frame_column,
-            pos_cols_inputdata,
-        )
-        tracked_events, nan_rows = self._link_clusters_between_frames(frame_data, pos_data)
-
-        if self.clid_column in x_sorted.columns:
-            df_out = x_filtered.iloc[~nan_rows].drop(columns=[self.clid_column]).copy().reset_index(drop=True)
-        else:
-            df_out = x_filtered.iloc[~nan_rows].copy().reset_index(drop=True)
-        # tracked_events = tracked_events.merge(df_to_merge, how="left")
-        df_out[self.clid_column] = tracked_events
-        return df_out
-
-    def _array_linking(self, x, copy):
-        if copy:
-            x = self.input_data.copy()
-        else:
-            x = self.input_data
-        pos_data, meas_data, frame_data, dims_dict = _image_parser(x, dims=self.dims)
-        frame_data_active, pos_data_active = self._filter_active_arrays(frame_data, pos_data, meas_data)
-
-        tracked_events, nan_rows = self._link_clusters_between_frames(frame_data_active, pos_data_active)
-        return self._tracked_events_to_image(
-            x, frame_data_active[~nan_rows], pos_data_active[~nan_rows], tracked_events, dims_dict
-        )
-
-    def _tracked_events_to_image(self, x, frame_data, pos_data, tracked_events, dims_dict):
+    def _coordinates_to_image(self, x, pos_data, tracked_events):
         # create empty image
         out_img = np.zeros_like(x, dtype=np.uint16)
-        # transpose image to correct order so values can be assigned
-        transposition_order = tuple(dims_dict.values())
-        out_img = np.transpose(out_img, transposition_order)
-        # add time dimension if not present
-        if 'T' not in dims_dict:
-            out_img = out_img[np.newaxis, ...]
-        # assign values to image
-        frame_data = frame_data.astype(np.int32)
-        pos_data = pos_data.astype(np.int32)
-        if pos_data.shape[1] == 1:
-            out_img[frame_data, pos_data] = tracked_events
-        elif pos_data.shape[1] == 2:
-            out_img[frame_data, pos_data[:, 0], pos_data[:, 1]] = tracked_events
-        elif pos_data.shape[1] == 3:
-            out_img[frame_data, pos_data[:, 0], pos_data[:, 1], pos_data[:, 2]] = tracked_events
-        else:
+        tracked_events_mask = tracked_events > 0
+
+        pos_data = pos_data[tracked_events_mask].astype(np.uint16)
+        n_dims = pos_data.shape[1]
+
+        # Raise an error if dimension is zero
+        if n_dims == 0:
             raise ValueError("Dimension of input array not supported.")
-        # remove time dimension if not present in input
-        if 'T' not in dims_dict:
-            out_img = out_img[0, ...]
-        # transpose image back to original order
-        out_img = np.transpose(out_img, np.argsort(transposition_order))
+
+        # Create an indexing tuple
+        indices = tuple(pos_data[:, i] for i in range(n_dims))
+
+        # Index into out_img using the indexing tuple
+        out_img[indices] = tracked_events[tracked_events_mask]
 
         return out_img
 
+    def track_iteration(self, x: np.ndarray):
+        coordinates_data, meas_data = self._image_to_coordinates(x)
+        coordinates_data_filtered = self._filter_active(coordinates_data, meas_data)
 
-def _link(
-    propagation_threshold,
-    prev_frame_colid,
-    kdtree_prevframe: KDTree,
-    cluster,
-    cluster_pos_data,
+        self.linker.link(coordinates_data_filtered)
+
+        tracked_events = self.linker.event_ids
+        out_img = self._coordinates_to_image(x, coordinates_data_filtered, tracked_events)
+
+        return out_img
+
+    def track(self, x: np.ndarray, dims: str = "TXY") -> Generator:
+        available_dims = ["T", "X", "Y", "Z"]
+        dims_list = list(dims.upper())
+
+        # check input
+        for i in dims_list:
+            if i not in dims_list:
+                raise ValueError(f"Invalid dimension {i}. Must be 'T', 'X', 'Y', or 'Z'.")
+
+        if len(dims_list) > len(set(dims_list)):
+            raise ValueError("Duplicate dimensions in dims.")
+
+        if len(dims_list) != x.ndim:
+            raise ValueError(
+                f"Length of dims must be equal to number of dimensions in image. Image has {x.ndim} dimensions."
+            )
+
+        dims_dict = {i: dims_list.index(i) for i in available_dims if i in dims_list}
+
+        # reorder image so T is first dimension
+        image_reshaped = np.moveaxis(x, dims_dict["T"], 0)
+
+        for x_frame in image_reshaped:
+            x_tracked = self.track_iteration(x_frame)
+            yield x_tracked
+
+
+# this function will be used to track events from dataframes
+# it will be the public function that the user will call and produce a progress bar using tqdm
+def track_events_dataframe(
+    X: pd.DataFrame,
+    coordinates_column,
+    frame_column,
+    id_column,
+    bin_meas_colum,
+    collid_column,
+    eps,
     epsPrev,
-    n_jobs,
+    minClSz,
+    minSamples,
+    clusteringMethod,
+    propagationThreshold,
+    nPrev,
+    nJobs,
 ):
-    pos_current_cluster = cluster_pos_data
-    current_cluster = cluster
-    # calculate nearest neighbour between previoius and current frame
-    nn_dist, nn_indices = kdtree_prevframe.query(pos_current_cluster, k=1, workers=n_jobs)
-    prev_cluster_nbr_all = prev_frame_colid[nn_indices]
-    prev_cluster_nbr_eps = prev_cluster_nbr_all[(nn_dist <= epsPrev)]
-    # only continue if neighbours
-    # were detected within eps distance
-    if prev_cluster_nbr_eps.size < propagation_threshold:
-        return current_cluster
-
-    prev_clusternbr_eps_unique = np.unique(prev_cluster_nbr_eps, return_index=False)
-
-    if prev_clusternbr_eps_unique.size == 0:
-        return current_cluster
-
-    # propagate cluster id from previous frame
-    current_cluster = prev_cluster_nbr_all
-    return current_cluster
+    linker = Linker(eps, epsPrev, minClSz, minSamples, clusteringMethod, propagationThreshold, nPrev, nJobs)
+    tracker = DataFrameTracker(linker, coordinates_column, frame_column, id_column, bin_meas_colum, collid_column)
+    return pd.concat([timepoint for timepoint in tqdm(tracker.track(X), total=X[frame_column].nunique())]).reset_index(
+        drop=True
+    )
 
 
-def _image_parser(image: np.ndarray, dims: str = "TXY") -> tuple[np.ndarray, np.ndarray, np.ndarray, dict[str, int]]:
-    """Converts a 2d image series to input that can be accepted by the ARCOS event detection function
-    with columns for x, y, and intensity.
-    Arguments:
-        image (np.ndarray): Image to convert. Will be coerced to int32.
-        dims (str): String of dimensions in order. Default is "TXY". Possible values are "T", "X", "Y", and "Z".
-    Returns (tuple[np.ndarray, np.ndarray, np.ndarray]): Tuple of arrays with coordinates, measurements,
-        and frame numbers.
-    """
-    available_dims = ["T", "X", "Y", "Z"]
-    dims_list = list(dims.upper())
+# this function will be used to track events from images
+# it will be the public function that the user will call and produce a progress bar using tqdm
+def track_events_image(
+    X: np.ndarray,
+    eps,
+    epsPrev,
+    minClSz,
+    minSamples,
+    clusteringMethod,
+    propagationThreshold,
+    nPrev,
+    dims="TXY",
+    nJobs=1,
+):
+    linker = Linker(eps, epsPrev, minClSz, minSamples, clusteringMethod, propagationThreshold, nPrev, nJobs)
+    tracker = ImageTracker(linker)
+    # find indices of T in dims
+    T_index = dims.upper().index("T")
+    return np.stack([timepoint for timepoint in tqdm(tracker.track(X, dims), total=X.shape[T_index])], axis=T_index)
 
-    # check input
-    for i in dims_list:
-        if i not in dims_list:
-            raise ValueError(f"Invalid dimension {i}. Must be 'T', 'X', 'Y', or 'Z'.")
 
-    if len(dims_list) > len(set(dims_list)):
-        raise ValueError("Duplicate dimensions in dims.")
-
-    if len(dims_list) != image.ndim:
-        raise ValueError(
-            f"Length of dims must be equal to number of dimensions in image. Image has {image.ndim} dimensions."
+class detectCollev:
+    def __init__(
+        self,
+        input_data: Union[pd.DataFrame, np.ndarray],
+        eps: float = 1,
+        epsPrev: Union[float, None] = None,
+        minClSz: int = 1,
+        nPrev: int = 1,
+        posCols: list = ["x"],
+        frame_column: str = 'time',
+        id_column: Union[str, None] = None,
+        bin_meas_column: Union[str, None] = 'meas',
+        clid_column: str = 'clTrackID',
+        dims: str = "TXY",
+        method: str = "dbscan",
+        min_samples: int = 1,
+        cluster_selection_method: str = "leaf",
+        n_jobs: int = 1,
+        show_progress: bool = True,
+    ) -> None:
+        self.input_data = input_data
+        self.eps = eps
+        self.epsPrev = epsPrev
+        self.minClSz = minClSz
+        self.nPrev = nPrev
+        self.posCols = posCols
+        self.frame_column = frame_column
+        self.id_column = id_column
+        self.bin_meas_column = bin_meas_column
+        self.clid_column = clid_column
+        self.dims = dims
+        self.method = method
+        self.min_samples = min_samples
+        self.cluster_selection_method = cluster_selection_method
+        self.n_jobs = n_jobs
+        self.show_progress = show_progress
+        warnings.warn(
+            "This class is deprecated and will be removed a future release, use the track_events_dataframe or track_events_image functions directly.",  # noqa: E501
+            DeprecationWarning,
         )
 
-    dims_dict = {i: dims_list.index(i) for i in available_dims if i in dims_list}
-    coordinates_in_image = len([i for i in dims_list if i != "T"])
-
-    # calculate output shape
-    output_shape = 1
-    for shape in image.shape:
-        output_shape *= shape
-
-    # initialize output arrays
-    coordinates_array_out = np.zeros((output_shape, coordinates_in_image), dtype=np.float16)
-    meas_array_out = np.zeros((output_shape,), dtype=np.uint16)
-    frame_array_out = np.zeros((output_shape,), dtype=np.uint16)
-
-    # convert to int32
-    image = image.astype(np.uint16)
-
-    # transpose image to match order TXYZ
-    image_reshaped = np.transpose(image, tuple(dims_dict.values()))
-
-    if 'T' not in dims_list:
-        image_reshaped = image_reshaped.reshape(1, *image_reshaped.shape)
-
-    for idx, img_data in enumerate(image_reshaped):
-
-        coordinates_array = np.moveaxis(np.indices(img_data.shape), 0, coordinates_in_image).reshape(
-            (-1, coordinates_in_image)
-        )
-        meas_array = img_data.flatten()
-        frame_array = np.repeat(idx, coordinates_array.shape[0])
-
-        index_shape = 1
-        for shape in img_data.shape:
-            index_shape *= shape
-        out_indexer_from = index_shape * idx
-        out_indexer_to = index_shape * (idx + 1)
-        coordinates_array_out[out_indexer_from:out_indexer_to, :] = coordinates_array
-        meas_array_out[
-            out_indexer_from:out_indexer_to,
-        ] = meas_array
-        frame_array_out[
-            out_indexer_from:out_indexer_to,
-        ] = frame_array
-
-    return coordinates_array_out, meas_array_out, frame_array_out, dims_dict
+    def run(self, copy: bool = True) -> pd.DataFrame:
+        if isinstance(self.input_data, pd.DataFrame):
+            if copy:
+                self.input_data = self.input_data.copy()
+            return track_events_dataframe(
+                X=self.input_data,
+                coordinates_column=self.posCols,
+                frame_column=self.frame_column,
+                id_column=self.id_column,
+                bin_meas_colum=self.bin_meas_column,
+                collid_column=self.clid_column,
+                eps=self.eps,
+                epsPrev=self.epsPrev,
+                minClSz=self.minClSz,
+                minSamples=self.min_samples,
+                clusteringMethod=self.method,
+                propagationThreshold=1,
+                nPrev=self.nPrev,
+                nJobs=self.n_jobs,
+            )
+        elif isinstance(self.input_data, np.ndarray):
+            if copy:
+                self.input_data = np.copy(self.input_data)
+            return track_events_image(
+                X=self.input_data,
+                eps=self.eps,
+                epsPrev=self.epsPrev,
+                minClSz=self.minClSz,
+                minSamples=self.min_samples,
+                clusteringMethod=self.method,
+                propagationThreshold=1,
+                nPrev=self.nPrev,
+                dims=self.dims,
+                nJobs=self.n_jobs,
+            )
 
 
 def _nearest_neighbour_eps(
