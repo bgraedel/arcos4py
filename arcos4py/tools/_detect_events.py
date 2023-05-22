@@ -7,30 +7,20 @@ Example:
 """
 from __future__ import annotations
 
-import atexit
-import gc
-import os
-import shutil
-import tempfile
-import time
-import warnings
+from functools import partial
 from typing import Any, Union
 
 import numpy as np
 import pandas as pd
-from joblib import Parallel, delayed, dump, load
+from hdbscan import HDBSCAN
 from kneed import KneeLocator
 from matplotlib import pyplot as plt
 from scipy.spatial import KDTree
 from sklearn.cluster import DBSCAN
 from tqdm import tqdm
 
-RM_SUBDIRS_N_RETRY = 5
-RM_SUBDIRS_RETRY_TIME = 0.1
-TEMPFILE_REGISTRY_NAME = 'arcos4py_tempfiles_registry'
 
-
-def _dbscan(x: np.ndarray, eps: float, minClSz: int) -> np.ndarray:
+def _dbscan(x: np.ndarray, eps: float, minClSz: int, n_jobs: int = 1) -> np.ndarray:
     """Dbscan method to run and merge the cluster id labels to the original dataframe.
 
     Arguments:
@@ -40,7 +30,33 @@ def _dbscan(x: np.ndarray, eps: float, minClSz: int) -> np.ndarray:
         list[np.ndarray]: list with added collective id column detected by DBSCAN.
     """
     if x.size:
-        db_array = DBSCAN(eps=eps, min_samples=minClSz, algorithm="kd_tree").fit(x)
+        db_array = DBSCAN(eps=eps, min_samples=minClSz, algorithm="kd_tree", n_jobs=1).fit(x)
+        cluster_labels = db_array.labels_
+        cluster_list = np.where(cluster_labels > -1, cluster_labels + 1, np.nan)
+        return cluster_list
+
+    return np.empty((0, 0))
+
+
+def _hdbscan(
+    x: np.ndarray, eps: float, minClSz: int, min_samples: int, cluster_selection_method: str, n_jobs: int = 1
+) -> np.ndarray:
+    """Hdbscan method to run and merge the cluster id labels to the original dataframe.
+
+    Arguments:
+        x (np.ndarray): With unique frame and position columns.
+
+    Returns:
+        list[np.ndarray]: list with added collective id column detected by HDBSCAN.
+    """
+    if x.size:
+        db_array = HDBSCAN(
+            min_cluster_size=minClSz,
+            min_samples=min_samples,
+            cluster_selection_epsilon=eps,
+            cluster_selection_method=cluster_selection_method,
+            core_dist_n_jobs=n_jobs,
+        ).fit(x)
         cluster_labels = db_array.labels_
         cluster_list = np.where(cluster_labels > -1, cluster_labels + 1, np.nan)
         return cluster_list
@@ -87,6 +103,9 @@ class detectCollev:
         bin_meas_column: Union[str, None] = 'meas',
         clid_column: str = 'clTrackID',
         dims: str = "TXY",
+        method: str = "dbscan",
+        min_samples: None | int = None,
+        cluster_selection_method: str = "leaf",
         n_jobs: int = 1,
         show_progress: bool = True,
     ) -> None:
@@ -130,6 +149,19 @@ class detectCollev:
         self.posCols = posCols
         self.clidFrame = f'{clid_column}.frame'
         self.dims = dims
+        self.method = method
+        if min_samples is None:
+            self.min_samples = minClSz
+        else:
+            self.min_samples = min_samples
+        self.cluster_selection_method = cluster_selection_method
+
+        if method == "dbscan":
+            self.clustering_method = partial(_dbscan, eps=eps, minClSz=minClSz)
+        elif method == "hdbscan":
+            self.clustering_method = partial(
+                _hdbscan, eps=eps, minClSz=minClSz, min_samples=self.min_samples, cluster_selection_method='leaf'
+            )
 
         # run input checks
         self._run_input_checks()
@@ -162,12 +194,13 @@ class detectCollev:
 
     def _check_eps(self):
         """Checks if eps is greater than 0."""
-        if self.eps <= 0:
-            raise ValueError("Parameter eps has to be greater than 0")
+        if self.method == "dbscan":
+            if self.eps < 0:
+                raise ValueError("Parameter eps has to be greater than 0")
 
     def _check_epsPrev(self):
         """Checks if frame to frame distance is greater than 0."""
-        if self.epsPrev and self.epsPrev <= 0:
+        if self.epsPrev <= 0:
             raise ValueError("Parameter epsPrev has to be greater than 0 or None")
 
     def _check_minClSz(self):
@@ -242,8 +275,12 @@ class detectCollev:
             pos_data = pos_data[active]
         return frame_data, pos_data
 
+    def _group_data(self, frame_data):
+        unique_frame_vals, unique_frame_indices = np.unique(frame_data, axis=0, return_index=True)
+        return unique_frame_vals.astype(np.int32), unique_frame_indices[1:]
+
     # @profile
-    def _run_dbscan(self, frame_data: np.ndarray, pos_data: np.ndarray, n_jobs: int = 1) -> list[np.ndarray]:
+    def _run_dbscan(self, grouped_array) -> list[np.ndarray]:
         """Apply dbscan method to every group i.e. frame. Assumes input data is sorted according to frame and id column.
 
         Arguments:
@@ -254,20 +291,11 @@ class detectCollev:
         Returns:
             list[np.ndarray]: list of arrays containing collective id column detected by DBSCAN for every frame.
         """
-        assert frame_data.shape[0] == pos_data.shape[0]
-        grouped_array = np.split(pos_data, np.unique(frame_data, axis=0, return_index=True)[1][1:])
         # map dbscan to grouped_array
-        out = Parallel(n_jobs=n_jobs)(
-            delayed(_dbscan)(
-                x=i,
-                eps=self.eps,
-                minClSz=self.minClSz,
-            )
-            for i in tqdm(grouped_array, disable=not self.show_progress)
-        )
+        out = [self.clustering_method(x=i) for i in tqdm(grouped_array, disable=not self.show_progress)]
         return out
 
-    def _make_db_id_unique(self, x: list[np.ndarray]) -> np.ndarray:
+    def _make_db_id_unique(self, x: list[np.ndarray]) -> list[np.ndarray]:
         """Make db_scan cluster id labels unique by adding the\
         cummulative sum of previous group to next group.
 
@@ -280,12 +308,11 @@ class detectCollev:
         max_array = [0] + [np.nanmax(i) if i.size != 0 and not np.isnan(i).all() else 0 for i in x]
         max_array_cumsum = np.cumsum(np.nan_to_num(max_array))
         x_unique = [np.add(value, max_array_cumsum[i]) for i, value in enumerate(x)]
-        out = np.concatenate(x_unique)
-        return out
+        return x_unique
 
     # @profile
     def _link_clusters_between_frames(
-        self, frame_data: np.ndarray, pos_data: np.ndarray, colid_data: np.ndarray, propagation_threshold: int = 1
+        self, frame_data: np.ndarray, pos_data: np.ndarray, propagation_threshold: int = 1
     ) -> np.ndarray:
         """Tracks clusters detected with DBSCAN along a frame axis,\
         returns tracked collective events as a pandas dataframe.
@@ -300,7 +327,11 @@ class detectCollev:
         Returns:
             np.ndarray: Tracked collective event ids.
         """
-        tempfile_reg_path = self._clean_previous_mmaps()
+        assert frame_data.shape[0] == pos_data.shape[0], "Frame and position data must have the same length."
+
+        unique_frame_vals, group_by_cluster_id = self._group_data(frame_data)
+
+        grouped_pos_data = np.split(pos_data, group_by_cluster_id)
 
         # due to premission errors or if the program unexpectedly crashes,
         # the cleanup of the temporary directory created by tempfile.TemporaryDirectory
@@ -308,92 +339,75 @@ class detectCollev:
         # and clean up the temporary directory manually
         # if the cleanup fails, the script will attempt to remove the temporary directory
         # on the next run by keeping track of the temporary directory path in a logfile
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
 
-            memmap_folder = tmpdir
-            assert frame_data.shape[0] == pos_data.shape[0] == colid_data.shape[0]
+        # loop over all frames to link detected clusters iteratively
+        colid_data = self._run_dbscan(grouped_pos_data)
+        colid_data = self._make_db_id_unique(colid_data)
+        # drop nan rows
+        nan_rows = [np.isnan(i) for i in colid_data]
+        grouped_pos_data = [p[~i] for p, i in zip(grouped_pos_data, nan_rows)]
+        colid_data = [c[~i] for c, i in zip(colid_data, nan_rows)]
 
-            if self.n_jobs == 1:
-                # only one job, no need for memmap
-                _collid_data_paralell = colid_data
-            else:
-                # use memmap to share data between processes,
-                # this is necessary for parallelization of cluster linking
-                data_filename_memmap = os.path.join(memmap_folder, 'data_memmap')
-                # save data to memmap
-                dump(colid_data, data_filename_memmap)
-                # replace data with memmap
-                _collid_data_paralell = load(data_filename_memmap, mmap_mode='w+')
-            try:
-                unique_frame_vals = np.unique(frame_data, return_index=False)
-                # loop over all frames to link detected clusters iteratively
-                with Parallel(n_jobs=self.n_jobs) as parallel:
-                    for t in tqdm(unique_frame_vals[1:], disable=not self.show_progress):
-                        prev_frame_mask = (frame_data >= (t - self.nPrev)) & (frame_data < t)
-                        current_frame_mask = frame_data == t
-                        prev_frame_colid = _collid_data_paralell[prev_frame_mask]
-                        current_frame_colid = _collid_data_paralell[current_frame_mask]
-                        prev_frame_pos_data = pos_data[prev_frame_mask]
-                        current_frame_pos_data = pos_data[current_frame_mask]
-                        kdtree_prevframe = KDTree(data=prev_frame_pos_data)
-                        # only continue if objects were detected in previous frame
-                        if prev_frame_colid.size:
-                            current_frame_colid_unique = np.unique(current_frame_colid, return_index=False)
-                            # loop over unique cluster in frame
-                            parallel(
-                                delayed(_link)(
-                                    _collid_data_paralell,
-                                    propagation_threshold,
-                                    current_frame_mask,
-                                    prev_frame_colid,
-                                    current_frame_colid,
-                                    current_frame_pos_data,
-                                    kdtree_prevframe,
-                                    cluster,
-                                    self.epsPrev,
-                                )
-                                for cluster in (current_frame_colid_unique)
-                            )
-            except KeyboardInterrupt as e:
-                # make sure its garbage collected and the file is deleted
-                # if i dont do this the memmap file might not be deleted
-                del _collid_data_paralell
-                gc.collect()
-                delete_folder(memmap_folder, tempfile_reg_path)
-                raise e
+        for t in tqdm(range(unique_frame_vals[0], unique_frame_vals[-1] + 1), disable=not self.show_progress):
+            t_index = np.argwhere(unique_frame_vals == t).flatten()
+            prev_frame_vals = np.arange(t - self.nPrev, t, 1)
+            prev_frames_indices = np.argwhere(np.isin(unique_frame_vals, prev_frame_vals)).flatten()
 
-            consecutive_collids = np.unique(_collid_data_paralell, return_inverse=True)[1] + 1  # noqa F821
-            # make sure its garbage collected and the file is deleted
-            # if i dont do this the memmap file might not be deleted
-            try:
-                del _collid_data_paralell  # noqa F821
-            except NameError:
-                pass
-            gc.collect()
+            # only continue if objects were detected in current frame
+            if t_index.size == 0:
+                continue
+            t_index = t_index[0]
 
-        delete_folder(memmap_folder, tempfile_reg_path)
-        return consecutive_collids
+            # get current and prev frame data
+            if prev_frames_indices.size == 0:
+                continue
+            prev_frame_colid = np.concatenate([colid_data[i] for i in prev_frames_indices])
+            current_frame_colid = colid_data[t_index]
 
-    def _clean_previous_mmaps(self):
-        """Deletes previous temporary files created by memmap.
+            prev_frame_pos_data = np.concatenate([grouped_pos_data[i] for i in prev_frames_indices])
+            current_frame_pos_data = grouped_pos_data[t_index]
 
-        If the temporary files cannot be deleted due to missing permissions,
-        this funciton will try to delete the files on the next run.
-        """
-        temporary_files_directory = tempfile.gettempdir()
-        tempfile_reg_path = os.path.join(temporary_files_directory, TEMPFILE_REGISTRY_NAME)
-        if os.path.exists(tempfile_reg_path):
-            with open(tempfile_reg_path, 'r') as f:
-                lines = f.readlines()
-            os.unlink(tempfile_reg_path)
-        else:
-            lines = []
+            kdtree_prevframe = KDTree(data=prev_frame_pos_data)
 
-        for line in lines:
-            line = line.strip()
-            if os.path.exists(line):
-                delete_folder(line, tempfile_reg_path)
-        return tempfile_reg_path
+            # only continue if objects were detected in previous frame
+            if prev_frame_colid.size == 0:
+                continue
+
+            if current_frame_colid.size == 0:
+                continue
+
+            # current_frame_colid_unique = np.unique(current_frame_colid, return_index=False)
+            # loop over unique cluster in frame
+            current_frame_colid_sort_key = np.argsort(current_frame_colid)
+            # group by cluster id
+            current_frame_colid = current_frame_colid[current_frame_colid_sort_key]
+            current_frame_pos_data = current_frame_pos_data[current_frame_colid_sort_key]
+            _, group_by_cluster_id = self._group_data(current_frame_colid)
+            grouped_clusters = np.split(current_frame_colid, group_by_cluster_id)
+
+            grouped_pos_data_clusters = np.split(current_frame_pos_data, group_by_cluster_id)
+
+            _linking_func = partial(
+                _link,
+                propagation_threshold=propagation_threshold,
+                prev_frame_colid=prev_frame_colid,
+                kdtree_prevframe=kdtree_prevframe,
+                epsPrev=self.epsPrev,
+                n_jobs=self.n_jobs,
+            )
+
+            out = [
+                _linking_func(cluster=cluster, cluster_pos_data=pos_cluster)
+                for cluster, pos_cluster in zip(grouped_clusters, grouped_pos_data_clusters)
+            ]
+
+            revers_sort_key = np.argsort(current_frame_colid_sort_key)
+            colid_data[t_index] = np.concatenate(out)[revers_sort_key]
+
+        collid_data_merged = np.concatenate(colid_data)
+        consecutive_collids = np.unique(collid_data_merged, return_inverse=True)[1] + 1
+
+        return consecutive_collids, np.concatenate(nan_rows)
 
     def _sort_input_dataframe(self, x: pd.DataFrame, frame_col: str, object_id_col: str | None) -> pd.DataFrame:
         """Sorts the input dataframe according to the frame column and track id column if available."""
@@ -438,14 +452,7 @@ class detectCollev:
             self.frame_column,
             pos_cols_inputdata,
         )
-        clid_vals = self._run_dbscan(frame_data=frame_data, pos_data=pos_data, n_jobs=self.n_jobs)
-        clid_vals_unique = self._make_db_id_unique(
-            clid_vals,
-        )
-        nan_rows = np.isnan(clid_vals_unique)
-        tracked_events = self._link_clusters_between_frames(
-            frame_data[~nan_rows], pos_data[~nan_rows], clid_vals_unique[~nan_rows]
-        )
+        tracked_events, nan_rows = self._link_clusters_between_frames(frame_data, pos_data)
 
         if self.clid_column in x_sorted.columns:
             df_out = x_filtered.iloc[~nan_rows].drop(columns=[self.clid_column]).copy().reset_index(drop=True)
@@ -462,24 +469,22 @@ class detectCollev:
             x = self.input_data
         pos_data, meas_data, frame_data, dims_dict = _image_parser(x, dims=self.dims)
         frame_data_active, pos_data_active = self._filter_active_arrays(frame_data, pos_data, meas_data)
-        clid_vals = self._run_dbscan(frame_data=frame_data_active, pos_data=pos_data_active, n_jobs=self.n_jobs)
-        clid_vals_unique = self._make_db_id_unique(
-            clid_vals,
-        )
-        nan_rows = np.isnan(clid_vals_unique)
-        tracked_events = self._link_clusters_between_frames(
-            frame_data_active[~nan_rows], pos_data_active[~nan_rows], clid_vals_unique[~nan_rows]
-        )
+
+        tracked_events, nan_rows = self._link_clusters_between_frames(frame_data_active, pos_data_active)
         return self._tracked_events_to_image(
             x, frame_data_active[~nan_rows], pos_data_active[~nan_rows], tracked_events, dims_dict
         )
 
     def _tracked_events_to_image(self, x, frame_data, pos_data, tracked_events, dims_dict):
         # create empty image
-        out_img = np.zeros_like(x)
+        out_img = np.zeros_like(x, dtype=np.uint16)
         # transpose image to correct order so values can be assigned
         transposition_order = tuple(dims_dict.values())
         out_img = np.transpose(out_img, transposition_order)
+        # add time dimension if not present
+        if 'T' not in dims_dict:
+            out_img = out_img[np.newaxis, ...]
+        # assign values to image
         frame_data = frame_data.astype(np.int32)
         pos_data = pos_data.astype(np.int32)
         if pos_data.shape[1] == 1:
@@ -490,35 +495,43 @@ class detectCollev:
             out_img[frame_data, pos_data[:, 0], pos_data[:, 1], pos_data[:, 2]] = tracked_events
         else:
             raise ValueError("Dimension of input array not supported.")
+        # remove time dimension if not present in input
+        if 'T' not in dims_dict:
+            out_img = out_img[0, ...]
         # transpose image back to original order
         out_img = np.transpose(out_img, np.argsort(transposition_order))
+
         return out_img
 
 
 def _link(
-    output,
     propagation_threshold,
-    current_frame_mask,
     prev_frame_colid,
-    current_frame_colid,
-    current_frame_pos_data,
-    kdtree_prevframe,
+    kdtree_prevframe: KDTree,
     cluster,
+    cluster_pos_data,
     epsPrev,
+    n_jobs,
 ):
-    pos_current_cluster = current_frame_pos_data[current_frame_colid == cluster]
+    pos_current_cluster = cluster_pos_data
+    current_cluster = cluster
     # calculate nearest neighbour between previoius and current frame
-    nn_dist, nn_indices = kdtree_prevframe.query(pos_current_cluster, k=1)
+    nn_dist, nn_indices = kdtree_prevframe.query(pos_current_cluster, k=1, workers=n_jobs)
     prev_cluster_nbr_all = prev_frame_colid[nn_indices]
     prev_cluster_nbr_eps = prev_cluster_nbr_all[(nn_dist <= epsPrev)]
     # only continue if neighbours
     # were detected within eps distance
-    if prev_cluster_nbr_eps.size >= propagation_threshold:
-        prev_clusternbr_eps_unique = np.unique(prev_cluster_nbr_eps, return_index=False)
-        if prev_clusternbr_eps_unique.size > 0:
-            # propagate cluster id from previous frame
-            output[((current_frame_mask) & (output == cluster))] = prev_cluster_nbr_all
-    return None
+    if prev_cluster_nbr_eps.size < propagation_threshold:
+        return current_cluster
+
+    prev_clusternbr_eps_unique = np.unique(prev_cluster_nbr_eps, return_index=False)
+
+    if prev_clusternbr_eps_unique.size == 0:
+        return current_cluster
+
+    # propagate cluster id from previous frame
+    current_cluster = prev_cluster_nbr_all
+    return current_cluster
 
 
 def _image_parser(image: np.ndarray, dims: str = "TXY") -> tuple[np.ndarray, np.ndarray, np.ndarray, dict[str, int]]:
@@ -555,15 +568,18 @@ def _image_parser(image: np.ndarray, dims: str = "TXY") -> tuple[np.ndarray, np.
         output_shape *= shape
 
     # initialize output arrays
-    coordinates_array_out = np.zeros((output_shape, coordinates_in_image))
-    meas_array_out = np.zeros((output_shape,))
-    frame_array_out = np.zeros((output_shape,))
+    coordinates_array_out = np.zeros((output_shape, coordinates_in_image), dtype=np.float16)
+    meas_array_out = np.zeros((output_shape,), dtype=np.uint16)
+    frame_array_out = np.zeros((output_shape,), dtype=np.uint16)
 
     # convert to int32
-    image = image.astype(np.int32)
+    image = image.astype(np.uint16)
 
     # transpose image to match order TXYZ
     image_reshaped = np.transpose(image, tuple(dims_dict.values()))
+
+    if 'T' not in dims_list:
+        image_reshaped = image_reshaped.reshape(1, *image_reshaped.shape)
 
     for idx, img_data in enumerate(image_reshaped):
 
@@ -735,40 +751,3 @@ def estimate_eps(
         plt.show()
 
     return eps
-
-
-# utility functoin to delete memmap folder copied from joblib
-def delete_folder(folder_path, temp_file_registry):
-    """Utility function to cleanup a temporary folder if it still exists."""
-    if os.path.isdir(folder_path):
-        # allow the rmtree to fail once, wait and re-try.
-        # if the error is raised again, fail
-        err_count = 0
-        while True:
-            try:
-                shutil.rmtree(folder_path, False, None)
-                break
-            except (OSError, WindowsError):
-                err_count += 1
-                if err_count > RM_SUBDIRS_N_RETRY:
-                    warnings.warn(f"Unable to delete folder {folder_path} after {RM_SUBDIRS_N_RETRY} tentatives.")
-                    # keep trackof the folders that could not be deleted in a file located the temporary directory
-                    # and try to delete them the next time the program is run
-                    with open(temp_file_registry, "a") as f:
-                        f.write(f"{folder_path}")
-                        f.write("\n")
-                    break
-
-                time.sleep(RM_SUBDIRS_RETRY_TIME)
-
-
-def _remove_folder_if_unable_to_delete(folder):
-    """Remove a folder if it is not possible to delete it."""
-    if os.path.isdir(folder):
-        try:
-            shutil.rmtree(folder, False, None)
-        except (OSError, WindowsError):
-            warnings.warn(f"Unable to delete folder {folder}. " "The folder will be deleted at the end of the program.")
-            # keep trackof the folders that could not be deleted
-            # and try to delete them at the end of the program
-            atexit.register(_remove_folder_if_unable_to_delete, folder)
