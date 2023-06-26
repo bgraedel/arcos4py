@@ -19,6 +19,9 @@ import pandas as pd
 from hdbscan import HDBSCAN
 from kneed import KneeLocator
 from scipy.spatial import KDTree
+
+# from scipy.spatial.distance import cdist
+# from scipy.optimize import linear_sum_assignment
 from sklearn.cluster import DBSCAN
 from tqdm import tqdm
 
@@ -110,6 +113,16 @@ def brute_force_linking(
     # propagate cluster id from previous frame
     cluster_labels = prev_cluster_labels
     return cluster_labels, max_cluster_label
+
+
+def linear_assignment_linking(
+    cluster_coordinates,
+    memory_coordinates,
+    memory_cluster_labels,
+    max_cluster_label,
+    epsPrev,
+):
+    raise NotImplementedError
 
 
 @dataclass
@@ -213,7 +226,9 @@ class Linker:
             max_cluster_label=self._memory.max_prev_cluster_id,
             n_jobs=self.n_jobs,
         )
+
         self._memory.max_prev_cluster_id = max_cluster_label
+
         return linked_clusters
 
     def _update_tree(self, coords):
@@ -451,6 +466,8 @@ class ImageTracker(BaseTracker):
     def _coordinates_to_image(self, x, pos_data, tracked_events):
         # create empty image
         out_img = np.zeros_like(x, dtype=np.uint16)
+        if tracked_events.size == 0:
+            return out_img
         tracked_events_mask = tracked_events > 0
 
         pos_data = pos_data[tracked_events_mask].astype(np.uint16)
@@ -535,13 +552,13 @@ def track_events_dataframe(
 # it will be the public function that the user will call and produce a progress bar using tqdm
 def track_events_image(
     X: np.ndarray,
-    eps,
-    epsPrev,
-    minClSz,
-    minSamples,
-    clusteringMethod,
-    propagationThreshold,
-    nPrev,
+    eps=1,
+    epsPrev=None,
+    minClSz=1,
+    minSamples=1,
+    clusteringMethod="dbscan",
+    propagationThreshold=1,
+    nPrev=1,
     dims="TXY",
     nJobs=1,
 ):
