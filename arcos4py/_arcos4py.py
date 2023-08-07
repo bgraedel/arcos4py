@@ -17,6 +17,7 @@ Example:
             biasMet = "runmed")
     >>> events_df = ts.trackCollev(eps = 1, minClsz = 1, nPrev = 1)
 """
+from __future__ import annotations
 
 from typing import Union
 
@@ -24,7 +25,7 @@ import pandas as pd
 
 from .tools._binarize_detrend import binData
 from .tools._cleandata import clipMeas, interpolation
-from .tools._detect_events import detectCollev
+from .tools._detect_events import track_events_dataframe
 
 
 class ARCOS:
@@ -55,7 +56,7 @@ class ARCOS:
         data: pd.DataFrame,
         posCols: list = ["x"],
         frame_column: str = 'time',
-        id_column: str = 'id',
+        id_column: str | None = 'id',
         measurement_column: str = 'meas',
         clid_column: str = 'clTrackID',
         n_jobs: int = 1,
@@ -68,7 +69,8 @@ class ARCOS:
             posCols (list): List ontaining position column names strings inside data e.g.
                 At least one dimension is required.
             frame_column (str): Indicating the frame column in input_data.
-            id_column (str): Indicating the track id/object id column in input_data.
+            id_column (str): Indicating the track id/object id column in input_data. If None, the data is assumed to
+                not have a tracking column. Binarization can only be performed without detrending.
             measurement_column (str): Indicating the measurement column in input_data.
             clid_column (str): Indicating the column name containing the collective event ids.
             n_jobs (str): Number of workers to spawn, -1 uses all available cpus.
@@ -83,8 +85,10 @@ class ARCOS:
 
         self.bin_col: Union[str, None] = None
         # to check if no measurement was provided assign None
-
-        self.data = self.data.sort_values(by=[self.frame_column, self.id_column])
+        if self.id_column is None:
+            self.data = self.data.sort_values(by=[self.frame_column])
+        else:
+            self.data = self.data.sort_values(by=[self.frame_column, self.id_column])
         self._check_col()
         if self.measurement_column is not None:
             self.resc_col = f"{self.measurement_column}.resc"
@@ -159,6 +163,7 @@ class ARCOS:
             binThr (float): Threshold for binary classification.
             polyDeg (int): Sets the degree of the polynomial for lm fitting.
             biasMet (str): De-trending method, one of ['runmed', 'lm', 'none'].
+                If no id_column is provided, only 'none' is allowed.
 
         Returns:
             DataFrame with detrended/smoothed and binarized measurement column.
@@ -175,7 +180,7 @@ class ARCOS:
         return self.data
 
     def trackCollev(
-        self, eps: float = 1, epsPrev: Union[float, None] = None, minClsz: int = 1, nPrev: int = 1
+        self, eps: float = 1, epsPrev: Union[int, None] = None, minClsz: int = 1, nPrev: int = 1
     ) -> pd.DataFrame:
         """Requires binarized measurement column.
 
@@ -196,18 +201,18 @@ class ARCOS:
         Returns:
             DataFrame with detected collective events across time.
         """
-        data_events = detectCollev(
-            self.data,
+        data_events = track_events_dataframe(
+            X=self.data,
+            coordinates_column=self.posCols,
+            frame_column=self.frame_column,
+            id_column=self.id_column,
+            bin_meas_column=self.bin_col,
             eps=eps,
             epsPrev=epsPrev,
             minClSz=minClsz,
             nPrev=nPrev,
-            posCols=self.posCols,
-            frame_column=self.frame_column,
-            id_column=self.id_column,
-            bin_meas_column=self.bin_col,
-            clid_column=self.clid_column,
-            n_jobs=self.n_jobs,
-        ).run()
+            collid_column=self.clid_column,
+            nJobs=self.n_jobs,
+        )
 
         return data_events

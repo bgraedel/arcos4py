@@ -29,7 +29,7 @@ def bootstrap_arcos(
     polyDeg: int = 1,
     biasMet: str = "runmed",
     eps: float = 2,
-    epsPrev: float | None = None,
+    epsPrev: int | None = None,
     minClsz: int = 1,
     nPrev: int = 1,
     min_duration: int = 1,
@@ -234,7 +234,7 @@ def calculate_arcos_stats(
     polyDeg: int = 1,
     biasMet: str = "runmed",
     eps: float = 2,
-    epsPrev: float | None = None,
+    epsPrev: int | None = None,
     minClsz: int = 1,
     nPrev: int = 1,
     min_duration: int = 1,
@@ -260,7 +260,7 @@ def calculate_arcos_stats(
         polyDeg (int, optional): Polynomial degree used for detrending (used with biasMet='lm'). Defaults to 1.
         biasMet (str, optional): Bias method, can be 'none', 'runmed', 'lm'. Defaults to "runmed".
         eps (float, optional): Epsilon used for culstering active entities. Defaults to 2.
-        epsPrev (float, optional): Epsilon used for linking together culsters across time. Defaults to None.
+        epsPrev (int, optional): Epsilon used for linking together culsters across time. Defaults to None.
         minClsz (int, optional): Minimum cluster size. Defaults to 1.
         nPrev (int, optional): Number of previous frames to consider when tracking clusters. Defaults to 1.
         min_duration (int, optional): Minimum duration of detected event. Defaults to 1.
@@ -353,7 +353,7 @@ def _apply_arcos(
     polyDeg: int,
     biasMet: str,
     eps: float,
-    epsPrev: float | None,
+    epsPrev: int | None,
     minClsz: int,
     nPrev: int,
     min_dur: int,
