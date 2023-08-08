@@ -19,12 +19,12 @@ import numpy as np
 import pandas as pd
 import pulp
 from kneed import KneeLocator
+from scipy.spatial import KDTree
 from scipy.spatial.distance import cdist
 from skimage.transform import rescale
 from sklearn.cluster import DBSCAN, HDBSCAN
 
-# from scipy.spatial import KDTree
-from sklearn.neighbors import KDTree
+# from sklearn.neighbors import KDTree
 from tqdm import tqdm
 
 AVAILABLE_CLUSTERING_METHODS = ['dbscan', 'hdbscan']
@@ -247,6 +247,7 @@ def brute_force_linking(
     nn_dist, nn_indices = memory_kdtree.query(cluster_coordinates, k=1)
     nn_dist = nn_dist.flatten()
     nn_indices = nn_indices.flatten()
+    print(nn_indices)
     prev_cluster_labels = memory_cluster_labels[nn_indices]
     prev_cluster_labels_eps = prev_cluster_labels[(nn_dist <= epsPrev)]
     # only continue if neighbours
@@ -683,6 +684,7 @@ class Linker:
 
     # @profile
     def _update_id(self, cluster_ids, coordinates):
+        print(coordinates)
         memory_coordinates = self._memory.coordinates
         memory_cluster_ids = self._memory.prev_cluster_ids
 
