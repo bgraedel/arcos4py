@@ -67,7 +67,7 @@ def test_2_passing():
     test_img = imread('tests/testdata/pix/2_passing.tif')
     true_img = imread('tests/testdata/pix/2_passing_true.tif')
     test_img = np.where(test_img == 255, 0, 1)
-    tracked_img = track_events_image(test_img, eps=2, epsPrev=2, minClSz=4, nPrev=2, dims="TXY")
+    tracked_img = track_events_image(test_img, eps=2, minClSz=2, nPrev=2, dims="TXY", predictor=False)
     assert_array_equal(tracked_img, true_img)
 
 

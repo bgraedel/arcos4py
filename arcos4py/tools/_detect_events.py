@@ -19,10 +19,12 @@ import numpy as np
 import pandas as pd
 import pulp
 from kneed import KneeLocator
-from scipy.spatial import KDTree
 from scipy.spatial.distance import cdist
 from skimage.transform import rescale
 from sklearn.cluster import DBSCAN, HDBSCAN
+
+# from scipy.spatial import KDTree
+from sklearn.neighbors import KDTree
 from tqdm import tqdm
 
 AVAILABLE_CLUSTERING_METHODS = ['dbscan', 'hdbscan']
@@ -226,7 +228,6 @@ def brute_force_linking(
     memory_kdtree: KDTree,
     epsPrev: float,
     max_cluster_label: int,
-    n_jobs: int,
 ) -> Tuple[np.ndarray, int]:
     """Brute force linking of clusters across frames.
 
@@ -243,8 +244,9 @@ def brute_force_linking(
         Tuple containing the updated cluster labels and the maximum cluster label.
     """
     # calculate nearest neighbour between previoius and current frame
-    nn_dist, nn_indices = memory_kdtree.query(cluster_coordinates, k=1, workers=n_jobs)
-    print(nn_indices)
+    nn_dist, nn_indices = memory_kdtree.query(cluster_coordinates, k=1)
+    nn_dist = nn_dist.flatten()
+    nn_indices = nn_indices.flatten()
     prev_cluster_labels = memory_cluster_labels[nn_indices]
     prev_cluster_labels_eps = prev_cluster_labels[(nn_dist <= epsPrev)]
     # only continue if neighbours
@@ -549,7 +551,7 @@ class Linker:
             predictor (bool | Callable): The predictor method to be used.
             nPrev (int): Number of previous frames the tracking
                 algorithm looks back to connect collective events.
-            nJobs (int): Number of jobs to run in parallel.
+            nJobs (int): Number of jobs to run in parallel (only for clustering algorithm).
         """
         self._predictor: Predictor | None  # for mypy
         self._memory = Memory(n_timepoints=nPrev)
@@ -627,7 +629,6 @@ class Linker:
                 memory_kdtree=self._nn_tree,
                 epsPrev=self._epsPrev,
                 max_cluster_label=self._memory.max_prev_cluster_id,
-                n_jobs=self._n_jobs,
             )
         elif self.linking_function == 'transportation_linking':
             linked_clusters, max_cluster_label = transportation_linking(
