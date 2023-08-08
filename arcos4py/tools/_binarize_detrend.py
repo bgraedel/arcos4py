@@ -5,6 +5,10 @@ Example:
     >>> binarizer = binData(biasMet="lm", polyDeg=1)
     >>> data_rescaled = binarizer.run(data, colMeas="ERK_KTR", colGroup="trackID")
 """
+from __future__ import annotations
+
+from warnings import warn
+
 import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
@@ -109,12 +113,11 @@ class detrender:
 
         Arguments:
             x (np.ndarray): Time series data for smoothing.
-            group_index (int): Index of id column in x.
+            group_index (int | None): Index of id column in x.
             meas_index (int): Index of measurement column in x.
 
         Returns (np.ndarray): Dataframe containing rescaled column.
         """
-        #################################################
         meas_array = x[:, meas_index].astype('float64')
         try:
             group_array = x[:, group_index].astype('int64')
@@ -184,7 +187,7 @@ class binData(detrender):
         super().__init__(smoothK, biasK, peakThr, polyDeg, biasMet, n_jobs)
         self.binThr = binThr
 
-    def _rescale_data(self, x: np.ndarray, group_index: int, meas_index: int, feat_range: tuple = (0, 1)) -> np.ndarray:
+    def _rescale_data(self, x: np.ndarray, meas_index: int, feat_range: tuple = (0, 1)) -> np.ndarray:
         """Rescale data to a given range."""
         meas_array = x[:, meas_index].astype('float64')
         rescaled = minmax_scale(meas_array, feature_range=feat_range)
@@ -195,7 +198,7 @@ class binData(detrender):
         bin = (x >= self.binThr).astype(np.int_)
         return bin
 
-    def run(self, x: pd.DataFrame, colGroup: str, colMeas: str, colFrame: str) -> pd.DataFrame:
+    def run(self, x: pd.DataFrame, colGroup: str | None, colMeas: str, colFrame: str) -> pd.DataFrame:
         """Runs binarization and detrending.
 
         If the bias Method is 'none', first it rescales the data to between [0,1], then
@@ -209,26 +212,52 @@ class binData(detrender):
 
         Arguments:
             x (DataFrame): The time-series data for smoothing, detrending and binarization.
-            colGroup (str): Object id column in x. Detrending and rescaling is performed on a per-object basis.
+            colGroup (str | None): Object id column in x. Detrending and rescaling is performed on a per-object basis.
+                If None, no detrending is performed, only rescaling and bias method is ignored.
             colMeas (str): Measurement column in x on which detrending and rescaling is performed.
             colFrame (str): Frame column in Time-series data. Used for sorting.
 
         Returns:
             DataFrame: Dataframe containing binarized data, rescaled data and the original columns.
         """
+        if colGroup is None:
+            return self._run_without_groupcol(x, colMeas, colFrame)
+        else:
+            return self._run_with_groupcol(x, colGroup, colMeas, colFrame)
+
+    def _run_without_groupcol(self, x, colMeas, colFrame):
+        col_resc = f"{colMeas}.resc"
+        col_bin = f"{colMeas}.bin"
+        cols = [colMeas]
+        x = x.sort_values(colFrame)
+        data_np = x[cols].to_numpy()
+
+        if self.biasMet == "none":
+            rescaled_data = self._rescale_data(data_np, meas_index=0)
+            binarized_data = self._bin_data(rescaled_data)
+        else:
+            warn("No detrending is performed, only rescaling. To run detrending, set colGroup.")
+            rescaled_data = self._rescale_data(data_np, meas_index=0)
+            binarized_data = self._bin_data(rescaled_data)
+
+        x[col_resc] = rescaled_data[:, 0]
+        x[col_bin] = binarized_data[:, 0]
+        return x
+
+    def _run_with_groupcol(self, x, colGroup, colMeas, colFrame):
         col_resc = f"{colMeas}.resc"
         col_bin = f"{colMeas}.bin"
         col_fact = f'{colGroup}_factorized'
         cols = [col_fact, colMeas]
-        x.sort_values([colGroup, colFrame], inplace=True)
+        x = x.sort_values([colGroup, colFrame])
         # factorize column in order to prevent numpy grouping error in detrending
         value, label = x[colGroup].factorize()
         x[col_fact] = value
-        # convert to numpy
+
         data_np = x[cols].to_numpy()
 
         if self.biasMet == "none":
-            rescaled_data = self._rescale_data(data_np, group_index=0, meas_index=1)
+            rescaled_data = self._rescale_data(data_np, meas_index=1)
             detrended_data = self.detrend(rescaled_data, 0, 1)
             binarized_data = self._bin_data(detrended_data)
         else:

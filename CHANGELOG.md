@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.2.0] - Upcoming Release
+### Added
+- Funcionallity to directly apply ARCOS to images
+- Simple movement predictor to improve tracking
+- HDBSCAN as an alternative clustering method
+- Transportation linking as an alternative linking method
+- Preprocessing function for detrending of images
+- Unit tests for image tracking
+- Added optional Progressbar
+
+### Changed
+- Refactorization of event detection to improve memory usage and simplify algorithm
+- ARCOS main class now also supports event detection without specifying a tracking column
+- Package is now tested on python 3.8 to 3.11 (dropped 3.7 and added 3.11)
+- Event detection can now ingest data lazily
+- Old detectCollev class is now deprecated in favor of track_events_image and track_events_dataframe
+
 ## [0.1.6] - 2022-05-02
 ### Fixed
 - Bug where trackCollev would overwrite the inputdata in the ARCOS object, preventing repeat tracking of collective events.
