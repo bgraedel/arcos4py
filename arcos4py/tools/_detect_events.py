@@ -26,7 +26,7 @@ from sklearn.cluster import DBSCAN, HDBSCAN
 from tqdm import tqdm
 
 AVAILABLE_CLUSTERING_METHODS = ['dbscan', 'hdbscan']
-AVAILABLE_LINKING_METHODS = ['nearest', 'transportation_solver']
+AVAILABLE_LINKING_METHODS = ['nearest', 'transportation']
 
 
 def downscale_image(image, scale_factor):
@@ -244,6 +244,7 @@ def brute_force_linking(
     """
     # calculate nearest neighbour between previoius and current frame
     nn_dist, nn_indices = memory_kdtree.query(cluster_coordinates, k=1, workers=n_jobs)
+    print(nn_indices)
     prev_cluster_labels = memory_cluster_labels[nn_indices]
     prev_cluster_labels_eps = prev_cluster_labels[(nn_dist <= epsPrev)]
     # only continue if neighbours
@@ -389,7 +390,7 @@ class Predictor:
         with_default_predictor(): Class method that returns an instance of the Predictor class
             with the default predictor.
         default_predictor(coordinates, cluster_ids): Static method that contains the default prediction logic.
-            Predictscoordinates based on centroid displacement.
+            Predicts coordinates based on centroid displacement.
         predict(coordinates, cluster_ids): Predicts the coordinates for given clusters.
             Requires that the predictor has been fitted.
         fit(coordinates, cluster_ids): Fits the predictor using the given coordinates and cluster IDs.
@@ -590,7 +591,7 @@ class Linker:
         else:
             if linkingMethod == "nearest":
                 self.linking_function = 'brute_force_linking'
-            elif linkingMethod == "transportsolver":
+            elif linkingMethod == "transportation":
                 self.linking_function = 'transportation_linking'
             else:
                 raise ValueError(
