@@ -118,7 +118,7 @@ def _dbscan(x: np.ndarray, eps: float, minClSz: int, n_jobs: int = 1) -> np.ndar
 
 
 def _hdbscan(
-    x: np.ndarray, eps: float, minClSz: int, min_samples: int, cluster_selection_method: str, n_jobs: int = 1
+    x: np.ndarray, eps: float, minClSz: int, min_samples: int | None, cluster_selection_method: str, n_jobs: int = 1
 ) -> np.ndarray:
     """Hdbscan method to run and merge the cluster id labels to the original dataframe.
 
@@ -134,7 +134,7 @@ def _hdbscan(
             min_samples=min_samples,
             cluster_selection_epsilon=eps,
             cluster_selection_method=cluster_selection_method,
-            core_dist_n_jobs=n_jobs,
+            n_jobs=n_jobs,
         ).fit(x)
         cluster_labels = db_array.labels_
         cluster_list = np.where(cluster_labels > -1, cluster_labels + 1, np.nan)
@@ -529,7 +529,7 @@ class Linker:
         eps: float = 1,
         epsPrev: int | None = None,
         minClSz: int = 1,
-        minSamples: int = 1,
+        minSamples: int | None = None,
         clusteringMethod: str | Callable = "dbscan",
         linkingMethod: str = "nearest",
         predictor: bool | Callable = True,
@@ -544,8 +544,12 @@ class Linker:
             epsPrev (int | None): Frame to frame distance, value is used to connect
                 collective events across multiple frames. If "None", same value as eps is used.
             minClSz (int): The minimum size for a cluster to be identified as a collective event.
-            minSamples (int): The minimum number of samples required to form a cluster.
-            clusteringMethod (str | Callable): The clustering method to be used. One of ['dbscan', 'hdbscan'].
+            minSamples (int | None): The number of samples (or total weight) in a neighbourhood for a
+                point to be considered as a core point. This includes the point itself.
+                Only used if clusteringMethod is 'hdbscan'. If None, minSamples =  minClsz.
+            clusteringMethod (str | Callable): The clustering method to be used. One of ['dbscan', 'hdbscan']
+                or a callable that takes a 2d array of coordinates and returns a list of cluster labels.
+                Arguments `eps`, `minClSz` and `minSamples` are ignored if a callable is passed.
             linkingMethod (str): The linking method to be used.
             predictor (bool | Callable): The predictor method to be used.
             nPrev (int): Number of previous frames the tracking
@@ -580,7 +584,7 @@ class Linker:
                 self.clustering_function = functools.partial(_dbscan, eps=eps, minClSz=minClSz)
             elif clusteringMethod == "hdbscan":
                 self.clustering_function = functools.partial(
-                    _hdbscan, eps=eps, minClSz=minClSz, min_samples=minSamples, cluster_selection_method='leaf'
+                    _hdbscan, eps=eps, minClSz=minClSz, min_samples=minSamples, cluster_selection_method='eom'
                 )
             else:
                 raise ValueError(
@@ -602,13 +606,14 @@ class Linker:
     def _validate_input(self, eps, epsPrev, minClSz, minSamples, clusteringMethod, nPrev, nJobs):
         if not isinstance(eps, (int, float, str)):
             raise ValueError(f"eps must be a number or None, got {eps}")
-        if not isinstance(epsPrev, (int, type(None))):
-            raise ValueError(f"epsPrev must be a number or None, got {epsPrev}")
-        for i in [minClSz, minSamples, nPrev, nJobs]:
+        for i in [epsPrev, minSamples]:
+            if not isinstance(i, (int, type(None))):
+                raise ValueError(f"{i} must be a number or None, got {epsPrev}")
+        for i in [minClSz, nPrev, nJobs]:
             if not isinstance(i, int):
                 raise ValueError(f"{i} must be an int, got {i}")
-        if not isinstance(clusteringMethod, str):
-            raise ValueError(f"clusteringMethod must be a string, got {clusteringMethod}")
+        if not isinstance(clusteringMethod, str) and not callable(clusteringMethod):
+            raise ValueError(f"clusteringMethod must be a string or a callable, got {clusteringMethod}")
 
     # @profile
     def _clustering(self, x):
@@ -682,7 +687,6 @@ class Linker:
 
     # @profile
     def _update_id(self, cluster_ids, coordinates):
-        print(coordinates)
         memory_coordinates = self._memory.coordinates
         memory_cluster_ids = self._memory.prev_cluster_ids
 
@@ -1037,7 +1041,7 @@ def track_events_dataframe(
     eps: float = 1.0,
     epsPrev: int | None = None,
     minClSz: int = 3,
-    minSamples: int = 3,
+    minSamples: int | None = None,
     clusteringMethod: str = "dbscan",
     linkingMethod: str = 'nearest',
     nPrev: int = 1,
@@ -1058,7 +1062,9 @@ def track_events_dataframe(
         eps (float): Maximum distance for clustering, default is 1.
         epsPrev (float | None): Maximum distance for linking previous clusters, if None, eps is used. Default is None.
         minClSz (int): Minimum cluster size. Default is 3.
-        minSamples (int): Minimum samples for clustering, used only if clusteringMethod is hdbscan. Default is 3.
+        minSamples (int): The number of samples (or total weight) in a neighbourhood for a
+            point to be considered as a core point. This includes the point itself.
+            Only used if clusteringMethod is 'hdbscan'. If None, minSamples =  minClsz.
         clusteringMethod (str): The method used for clustering, one of [dbscan, hdbscan]. Default is "dbscan".
         linkingMethod (str): The method used for linking, one of ['nearest', 'transportsolver']. Default is 'nearest'.
         nPrev (int): Number of previous frames to consider. Default is 1.
@@ -1100,7 +1106,7 @@ def track_events_image(
     eps: float = 1,
     epsPrev: int | None = None,
     minClSz: int = 1,
-    minSamples: int = 1,
+    minSamples: int | None = None,
     clusteringMethod: str = "dbscan",
     nPrev: int = 1,
     predictor: bool | Callable = False,
@@ -1117,7 +1123,9 @@ def track_events_image(
         eps (float): Distance for clustering. Default is 1.
         epsPrev (float | None): Maximum distance for linking previous clusters, if None, eps is used. Default is None.
         minClSz (int): Minimum cluster size. Default is 1.
-        minSamples (int): Minimum samples for clustering, used only if clusterinMethod is hdbscan. Default is 1.
+        minSamples (int | None): The number of samples (or total weight) in a neighbourhood for a
+            point to be considered as a core point. This includes the point itself.
+            Only used if clusteringMethod is 'hdbscan'. If None, minSamples =  minClsz.
         clusteringMethod (str): The method used for clustering, one of [dbscan, hdbscan]. Default is "dbscan".
         nPrev (int): Number of previous frames to consider. Default is 1.
         predictor (bool | Callable): Whether or not to use a predictor. Default is False.
@@ -1169,7 +1177,9 @@ class detectCollev:
         clid_column (str): Name of the column containing the cluster id. Default is 'clTrackID'.
         dims (str): String of dimensions in order, such as. Default is "TXY". Possible values are "T", "X", "Y", "Z".
         method (str): The method used for clustering, one of [dbscan, hdbscan]. Default is "dbscan".
-        min_samples (int): Minimum samples for clustering, used only if clusterinMethod is hdbscan. Default is 1.
+        min_samples (int | None): The number of samples (or total weight) in a neighbourhood for a
+                point to be considered as a core point. This includes the point itself.
+                Only used if clusteringMethod is 'hdbscan'. If None, minSamples =  minClsz.
         linkingMethod (str): The method used for linking. Default is 'nearest'.
         n_jobs (int): Number of jobs to run in parallel. Default is 1.
         predictor (bool | Callable): Whether or not to use a predictor. Default is False.
@@ -1192,7 +1202,7 @@ class detectCollev:
         clid_column: str = 'clTrackID',
         dims: str = "TXY",
         method: str = "dbscan",
-        min_samples: int = 1,
+        min_samples: int | None = None,
         linkingMethod='nearest',
         n_jobs: int = 1,
         predictor: bool | Callable = False,
@@ -1219,8 +1229,9 @@ class detectCollev:
             dims (str): String of dimensions in order, used if input_data is a numpy array. Default is "TXY".
                 Possible values are "T", "X", "Y", "Z".
             method (str): The method used for clustering, one of [dbscan, hdbscan]. Default is "dbscan".
-            min_samples (int): The number of samples in a neighborhood for a point to be considered as a core point.
-                Used only if method is 'hdbscan.
+            min_samples (int | None): The number of samples (or total weight) in a neighbourhood for a
+                point to be considered as a core point. This includes the point itself.
+                Only used if clusteringMethod is 'hdbscan'. If None, minSamples =  minClsz.
             linkingMethod (str): The method used for linking. Default is 'nearest'.
             n_jobs (int): Number of paralell workers to spawn, -1 uses all available cpus.
             predictor (bool | Callable): Whether or not to use a predictor. Default is False.

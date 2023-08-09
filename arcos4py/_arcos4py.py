@@ -180,7 +180,14 @@ class ARCOS:
         return self.data
 
     def trackCollev(
-        self, eps: float = 1, epsPrev: Union[int, None] = None, minClsz: int = 1, nPrev: int = 1
+        self,
+        eps: float = 1,
+        epsPrev: Union[int, None] = None,
+        minClsz: int = 1,
+        nPrev: int = 1,
+        clusteringMethod: str = "dbscan",
+        linkingMethod: str = "nearest",
+        minSamples: int | None = None,
     ) -> pd.DataFrame:
         """Requires binarized measurement column.
 
@@ -197,6 +204,11 @@ class ARCOS:
             minClsz (str): The minimum size for a cluster to be identified as a collective event
             nPrev (int): Number of previous frames the tracking
                 algorithm looks back to connect collective events
+            clusteringMethod (str): Clustering method, one of ['dbscan', 'hdbscan'].
+            minSamples (int | None): The number of samples (or total weight) in a neighbourhood for a
+                point to be considered as a core point. This includes the point itself.
+                Only used if clusteringMethod is 'hdbscan'. If None, minSamples =  minClsz.
+            linkingMethod (str): Linking method, one of ['nearest', 'transportation'].
 
         Returns:
             DataFrame with detected collective events across time.
@@ -212,6 +224,9 @@ class ARCOS:
             minClSz=minClsz,
             nPrev=nPrev,
             collid_column=self.clid_column,
+            linkingMethod=linkingMethod,
+            clusteringMethod=clusteringMethod,
+            minSamples=minSamples,
             nJobs=self.n_jobs,
         )
 
