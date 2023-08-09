@@ -1096,9 +1096,10 @@ def track_events_dataframe(
         bin_meas_column=bin_meas_column,
         collid_column=collid_column,
     )
-    return pd.concat(
+    df_out = pd.concat(
         [timepoint for timepoint in tqdm(tracker.track(X), total=X[frame_column].nunique(), disable=not showProgress)]
     ).reset_index(drop=True)
+    return df_out.query(f"{collid_column} != -1").reset_index(drop=True)
 
 
 def track_events_image(

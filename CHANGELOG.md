@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.2.0] - Upcoming Release
+## [0.2.0] - 2023-08-09
 ### Added
 - Funcionallity to directly apply ARCOS to images
 - Simple movement predictor to improve tracking
