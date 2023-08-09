@@ -286,3 +286,20 @@ def test_repeat_with_different_eps():
     out = ts.trackCollev(eps=1.0, epsPrev=1, minClsz=1, nPrev=1)
     out = out.drop(columns=pos)
     assert_frame_equal(out, df_true, check_like=True)
+
+
+def test_hdbscan_clustering():
+    df_in = pd.read_csv('tests/testdata/arcos_2_synthetic_clusters.csv')
+    df_true = pd.read_csv('tests/testdata/arcos_2_synthetic_clusters_hdbscan_true.csv')
+    pos = ['x', 'y']
+    ts = ARCOS(
+        df_in,
+        posCols=pos,
+        frame_column='t',
+        id_column='id',
+        measurement_column='m',
+        clid_column='collid',
+    )
+    ts.bin_measurements(binThr=0.5, biasMet='none')
+    out = ts.trackCollev(eps=0, epsPrev=2, minClsz=2, clusteringMethod='hdbscan')
+    assert_frame_equal(out, df_true, check_like=True, check_dtype=False)
