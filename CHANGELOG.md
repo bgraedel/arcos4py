@@ -1,5 +1,5 @@
 # Changelog
-## [0.2.0] - 2023-08-09
+## [0.2.1] - 2023-08-09
 ### Fixed
 - patch for dependencies in pyproject.toml file
 
