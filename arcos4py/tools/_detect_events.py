@@ -1310,11 +1310,12 @@ class detectCollev:
                 showProgress=self.show_progress,
             )
 
-
 def _nearest_neighbour_eps(
     X: np.ndarray,
     nbr_nearest_neighbours: int = 1,
 ):
+    if nbr_nearest_neighbours > X.shape[0]:
+        return np.array([[],[]])
     kdB = KDTree(data=X)
     nearest_neighbours, indices = kdB.query(X, k=nbr_nearest_neighbours)
     return nearest_neighbours[:, 1:]
@@ -1427,6 +1428,8 @@ def estimate_eps(
         distances_flat, min(max_samples, distances_flat.shape[0]), replace=False
     )
     distances_sorted = np.sort(distances_flat_selection)
+    if distances_sorted.shape[0] == 0:
+        raise ValueError('No valid distances found, please check input data.')
     if method == 'kneepoint':
         k1 = KneeLocator(
             np.arange(0, distances_sorted.shape[0]),
