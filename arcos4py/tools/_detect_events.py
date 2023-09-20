@@ -606,9 +606,10 @@ class Linker:
     def _validate_input(self, eps, epsPrev, minClSz, minSamples, clusteringMethod, nPrev, nJobs):
         if not isinstance(eps, (int, float, str)):
             raise ValueError(f"eps must be a number or None, got {eps}")
-        for i in [epsPrev, minSamples]:
-            if not isinstance(i, (int, type(None))):
-                raise ValueError(f"{i} must be a number or None, got {epsPrev}")
+        if not isinstance(epsPrev, (int, float, type(None))):
+            raise ValueError(f"{epsPrev} must be a number or None, got {epsPrev}")
+        if not isinstance(minSamples, (int, type(None))):
+            raise ValueError(f"{minSamples} must be a number or None, got {minSamples}")
         for i in [minClSz, nPrev, nJobs]:
             if not isinstance(i, int):
                 raise ValueError(f"{i} must be an int, got {i}")
@@ -1310,12 +1311,11 @@ class detectCollev:
                 showProgress=self.show_progress,
             )
 
+
 def _nearest_neighbour_eps(
     X: np.ndarray,
     nbr_nearest_neighbours: int = 1,
 ):
-    if nbr_nearest_neighbours > X.shape[0]:
-        return np.array([[],[]])
     kdB = KDTree(data=X)
     nearest_neighbours, indices = kdB.query(X, k=nbr_nearest_neighbours)
     return nearest_neighbours[:, 1:]
@@ -1420,9 +1420,13 @@ def estimate_eps(
     data_np = data_np[data_np[:, 0].argsort()]
     grouped_array = np.split(data_np[:, 1:], np.unique(data_np[:, 0], axis=0, return_index=True)[1][1:])
     # map nearest_neighbours to grouped_array
-    distances = np.concatenate([_nearest_neighbour_eps(i, n_neighbors) for i in grouped_array if i.shape[0] > 1])
+    distances = [_nearest_neighbour_eps(i, n_neighbors) for i in grouped_array if i.shape[0] >= n_neighbors]
+    if not distances:
+        distances_array = np.array([])
+    else:
+        distances_array = np.concatenate(distances)
     # flatten array
-    distances_flat = distances.flatten()
+    distances_flat = distances_array.flatten()
     distances_flat = distances_flat[np.isfinite(distances_flat)]
     distances_flat_selection = np.random.choice(
         distances_flat, min(max_samples, distances_flat.shape[0]), replace=False

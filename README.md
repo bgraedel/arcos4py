@@ -25,10 +25,6 @@ in the acinar morphogenesis (Ender et al., 2020), osteoblast regeneration (De Si
 
 Despite its focus on cell signaling, the framework can also be applied to other spatiotemporally correlated phenomena.
 
-### Todo's
-- Add additional tests for binarization and de-biasing modules.
-- Add local indicators of spatial autocorrelation (LISA) as a binarization method option.
-
 Data Format
 -----------
 The time series should be arranged in a long table format where each row defines the object's location, time, and optionally the measurement value.

@@ -18,7 +18,6 @@ def calculate_statistics_per_frame(
     data: pd.DataFrame,
     frame_column: str,
     collid_column: str,
-    obj_id_column: Union[str, None] = None,
     pos_columns: Union[List[str], None] = None,
 ) -> pd.DataFrame:
     """Calculate summary statistics for collective events based on the entire duration of each event.
@@ -27,7 +26,6 @@ def calculate_statistics_per_frame(
         data (pd.DataFrame): Input data containing information on the collective events.
         frame_column (str): The column name representing the frame numbers.
         collid_column (str): The column name representing the collective event IDs.
-        obj_id_column (str, optional): The column name representing the object IDs. Defaults to None.
         pos_columns (List[str], optional): List of column names representing the position coordinates. Defaults to None.
 
     Returns:
@@ -45,12 +43,10 @@ def calculate_statistics_per_frame(
             (calculated if pos_columns is provided).
         direction: The direction of motion of the centroid, calculated as the arctangent of the change in y divided
             the change in x (calculated if pos_columns is provided).
-        speed: The speed of the centroid, calculated as the norm of the change in x and y divided by the duration
-            (calculated if pos_columns is provided).
+        centroid_speed: The speed of the centroid, calculated as the norm of the change
+            in x and y divided by the duration (calculated if pos_columns is provided).
     """
     necessary_columns = [frame_column, collid_column]
-    if obj_id_column:
-        necessary_columns.append(obj_id_column)
     if pos_columns:
         necessary_columns.extend(pos_columns)
 
@@ -98,7 +94,7 @@ def calculate_statistics_per_frame(
             stats_df[f'delta_{col}'] = stats_df.groupby('collid')[f'centroid_{col}'].diff()
 
         # Calculate speed (the norm of the delta vector)
-        stats_df['speed'] = np.linalg.norm(stats_df[[f'delta_{col}' for col in pos_columns]].values, axis=1)
+        stats_df['centroid_speed'] = np.linalg.norm(stats_df[[f'delta_{col}' for col in pos_columns]].values, axis=1)
 
         # Calculate direction (only for 2D)
         if len(pos_columns) == 2:
@@ -124,7 +120,7 @@ def calculate_statistics(
         frame_column (str): The column name representing the frame numbers.
         collid_column (str): The column name representing the collective event IDs.
         obj_id_column (str, optional): The column name representing the object IDs. Defaults to None.
-        posCol (List[str], optional): List of column names representing the position coordinates. Defaults to None.
+        pos_columns (List[str], optional): List of column names representing the position coordinates. Defaults to None.
 
     Returns:
         pd.DataFrame: A DataFrame containing the summary statistics of the collective events.
