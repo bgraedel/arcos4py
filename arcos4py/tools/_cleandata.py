@@ -93,7 +93,7 @@ class clipMeas:
 
 
 def remove_image_background(
-    image: np.ndarray, filter_type: str = 'gaussian', size=(10, 1, 1), dims="TXY", crop_time_axis: bool = True
+    image: np.ndarray, filter_type: str = 'gaussian', size=(10, 1, 1), dims="TXY", crop_time_axis: bool = False
 ) -> np.ndarray:
     """Removes background from images. Assumes axis order (t, y, x) for 2d images and (t, z, y, x) for 3d images.
 
@@ -132,18 +132,21 @@ def remove_image_background(
 
     if filter_type not in allowed_filters:
         raise ValueError(f'Filter type must be one of {allowed_filters}.')
-
+    
     # get index of time axis
     t_idx = dims_list.index("T")
 
     orig_image = image.copy()
-    shift = size[t_idx] // 2
 
     if isinstance(size, int):
         size = (size,) * image.ndim
     elif isinstance(size, tuple):
         if len(size) != image.ndim:
             raise ValueError(f'Filter size must have {image.ndim} dimensions.')
+        # check size of dimensions are compatible with image
+        for idx, s in enumerate(size):
+            if s > image.shape[idx]:
+                raise ValueError(f'Filter size in dimension {idx} is larger than image size in that dimension.')
     else:
         raise ValueError('Filter size must be an int or tuple.')
 
@@ -152,9 +155,12 @@ def remove_image_background(
     elif filter_type == 'gaussian':
         filtered = gaussian_filter(orig_image, sigma=size)
 
+    # crop time axis if necessary
+    shift = size[t_idx] // 2
     corr = np.subtract(orig_image, filtered, dtype=np.float32)
     if crop_time_axis:
         corr = corr[shift:-shift]
+
     return corr
 
 

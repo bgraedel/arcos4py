@@ -1,9 +1,8 @@
 """Module to track and detect collective events.
 
 Example:
-    >>> from arcos4py.tools import detectCollev
-    >>> ts = detectCollev(data)
-    >>> events_df = ts.run()
+    >>> from arcos4py.tools import track_events_image
+    >>> ts = track_events_image(data)
 """
 from __future__ import annotations
 
