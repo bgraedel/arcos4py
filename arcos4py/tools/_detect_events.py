@@ -1,9 +1,8 @@
 """Module to track and detect collective events.
 
 Example:
-    >>> from arcos4py.tools import detectCollev
-    >>> ts = detectCollev(data)
-    >>> events_df = ts.run()
+    >>> from arcos4py.tools import track_events_image
+    >>> ts = track_events_image(data)
 """
 from __future__ import annotations
 
@@ -606,9 +605,10 @@ class Linker:
     def _validate_input(self, eps, epsPrev, minClSz, minSamples, clusteringMethod, nPrev, nJobs):
         if not isinstance(eps, (int, float, str)):
             raise ValueError(f"eps must be a number or None, got {eps}")
-        for i in [epsPrev, minSamples]:
-            if not isinstance(i, (int, type(None))):
-                raise ValueError(f"{i} must be a number or None, got {epsPrev}")
+        if not isinstance(epsPrev, (int, float, type(None))):
+            raise ValueError(f"{epsPrev} must be a number or None, got {epsPrev}")
+        if not isinstance(minSamples, (int, type(None))):
+            raise ValueError(f"{minSamples} must be a number or None, got {minSamples}")
         for i in [minClSz, nPrev, nJobs]:
             if not isinstance(i, int):
                 raise ValueError(f"{i} must be an int, got {i}")
@@ -1419,14 +1419,20 @@ def estimate_eps(
     data_np = data_np[data_np[:, 0].argsort()]
     grouped_array = np.split(data_np[:, 1:], np.unique(data_np[:, 0], axis=0, return_index=True)[1][1:])
     # map nearest_neighbours to grouped_array
-    distances = np.concatenate([_nearest_neighbour_eps(i, n_neighbors) for i in grouped_array if i.shape[0] > 1])
+    distances = [_nearest_neighbour_eps(i, n_neighbors) for i in grouped_array if i.shape[0] >= n_neighbors]
+    if not distances:
+        distances_array = np.array([])
+    else:
+        distances_array = np.concatenate(distances)
     # flatten array
-    distances_flat = distances.flatten()
+    distances_flat = distances_array.flatten()
     distances_flat = distances_flat[np.isfinite(distances_flat)]
     distances_flat_selection = np.random.choice(
         distances_flat, min(max_samples, distances_flat.shape[0]), replace=False
     )
     distances_sorted = np.sort(distances_flat_selection)
+    if distances_sorted.shape[0] == 0:
+        raise ValueError('No valid distances found, please check input data.')
     if method == 'kneepoint':
         k1 = KneeLocator(
             np.arange(0, distances_sorted.shape[0]),

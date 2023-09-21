@@ -1,4 +1,16 @@
 # Changelog
+## [0.2.2] - Upcoming
+### Fixed
+- Bug in eps estimation for DBSCAN clustering
+
+### Changed
+- Updated input data validation for remove_background function
+- ImageTracker, DataFrameTracker, remove_background can be imported from arcos4py.tools
+
+### Added
+- Added new function to calculate more statistics
+- Added new function to calculate statistics per frame
+
 ## [0.2.1] - 2023-08-09
 ### Fixed
 - patch for dependencies in pyproject.toml file

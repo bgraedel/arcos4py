@@ -59,3 +59,20 @@ def test_estimate_eps(test_data):
             mean_multiplier='string',
             plot=False,
         )
+
+    # Test invalid n_neighbors
+    with pytest.raises(ValueError):
+        eps = estimate_eps(
+            test_data,
+            method='kneepoint',
+            pos_cols=['x', 'y'],
+            frame_col='t',
+            n_neighbors=8,
+            S=1,
+            online=True,
+            curve='convex',
+            interp_method='polynomial',
+            direction='increasing',
+            polynomial_degree=7,
+            plot=False,
+        )
