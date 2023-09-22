@@ -528,7 +528,7 @@ class Linker:
     def __init__(
         self,
         eps: float = 1,
-        epsPrev: int | None = None,
+        epsPrev: float | None = None,
         minClSz: int = 1,
         minSamples: int | None = None,
         clusteringMethod: str | Callable = "dbscan",
@@ -542,7 +542,7 @@ class Linker:
         Arguments:
             eps (float): The maximum distance between two samples for one to be considered as in
                 the neighbourhood of the other.
-            epsPrev (int | None): Frame to frame distance, value is used to connect
+            epsPrev (float | None): Frame to frame distance, value is used to connect
                 collective events across multiple frames. If "None", same value as eps is used.
             minClSz (int): The minimum size for a cluster to be identified as a collective event.
             minSamples (int | None): The number of samples (or total weight) in a neighbourhood for a
@@ -1040,7 +1040,7 @@ def track_events_dataframe(
     bin_meas_column: str | None = None,
     collid_column: str = "collid",
     eps: float = 1.0,
-    epsPrev: int | None = None,
+    epsPrev: float | None = None,
     minClSz: int = 3,
     minSamples: int | None = None,
     clusteringMethod: str = "dbscan",
@@ -1106,7 +1106,7 @@ def track_events_dataframe(
 def track_events_image(
     X: np.ndarray,
     eps: float = 1,
-    epsPrev: int | None = None,
+    epsPrev: float | None = None,
     minClSz: int = 1,
     minSamples: int | None = None,
     clusteringMethod: str = "dbscan",
@@ -1146,16 +1146,14 @@ def track_events_image(
     spatial_dims = set("XYZ")
     D = len([d for d in dims if d in spatial_dims])
 
-    if epsPrev is None:
-        epsPrev = eps
-
     # Adjust parameters based on dimensionality
+    adjusted_epsPrev = epsPrev / downsample if epsPrev is not None else None
     adjusted_minClSz = int(minClSz / (downsample**D))
     adjusted_minSamples = int(minSamples / (downsample**D)) if minSamples is not None else None
 
     linker = Linker(
         eps=eps / downsample,
-        epsPrev=epsPrev / downsample,
+        epsPrev=adjusted_epsPrev,
         minClSz=adjusted_minClSz,
         minSamples=adjusted_minSamples,
         clusteringMethod=clusteringMethod,
@@ -1205,7 +1203,7 @@ class detectCollev:
         self,
         input_data: Union[pd.DataFrame, np.ndarray],
         eps: float = 1,
-        epsPrev: Union[int, None] = None,
+        epsPrev: Union[float, None] = None,
         minClSz: int = 1,
         nPrev: int = 1,
         posCols: list = ["x"],
@@ -1228,7 +1226,7 @@ class detectCollev:
             eps (float): The maximum distance between two samples for one to be considered as in
                 the neighbourhood of the other.
                 This is not a maximum bound on the distances of points within a cluster.
-            epsPrev (int | None): Frame to frame distance, value is used to connect
+            epsPrev (float | None): Frame to frame distance, value is used to connect
                 collective events across multiple frames.If "None", same value as eps is used.
             minClSz (int): Minimum size for a cluster to be identified as a collective event.
             nPrev (int): Number of previous frames the tracking
