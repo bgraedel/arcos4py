@@ -32,18 +32,18 @@ def calculate_statistics_per_frame(
         pd.DataFrame: A DataFrame containing the summary statistics of the collective events.
 
     Statistics Calculated:
-        collid: The unique ID representing each collective event.
-        frame: The frame number.
-        size: The number of objects in the collective event.
-        centroid_x, centroid_y: The x and y coordinates of the centroid of all objects in the collective event
+        - collid: The unique ID representing each collective event.
+        - frame: The frame number.
+        - size: The number of objects in the collective event
+        - centroid_x, centroid_y: The x and y coordinates of the centroid of all objects in the collective event
             (calculated if pos_columns is provided).
-        spatial_extent: The maximum distance between any pair of objects in the collective event
+        - spatial_extent: The maximum distance between any pair of objects in the collective event
             (calculated if pos_columns is provided).
-        convex_hull_area: The area of the convex hull enclosing all objects in the collective event
+        - convex_hull_area: The area of the convex hull enclosing all objects in the collective event
             (calculated if pos_columns is provided).
-        direction: The direction of motion of the centroid, calculated as the arctangent of the change in y divided
+        - direction: The direction of motion of the centroid, calculated as the arctangent of the change in y divided
             the change in x (calculated if pos_columns is provided).
-        centroid_speed: The speed of the centroid, calculated as the norm of the change
+        - centroid_speed: The speed of the centroid, calculated as the norm of the change
             in x and y divided by the duration (calculated if pos_columns is provided).
     """
     necessary_columns = [frame_column, collid_column]
@@ -126,25 +126,26 @@ def calculate_statistics(
         pd.DataFrame: A DataFrame containing the summary statistics of the collective events.
 
     Statistics Calculated:
-        collid: The unique ID representing each collective event.
-        duration: The duration of each event, calculated as the difference between the maximum
+        - collid: The unique ID representing each collective event.
+        - duration: The duration of each event, calculated as the difference between the maximum
             and minimum frame values plus one.
-        first_timepoint, last_timepoint: The first and last frames in which each event occurs.
-        total_size: The total number of unique objects involved in each event (calculated if obj_id_column is provided).
-        min_size, max_size: The minimum and maximum size of each event, defined as the number of objects in the event's
-            smallest and largest frames, respectively.
-        first_frame_centroid_x, first_frame_centroid_y, last_frame_centroid_x, last_frame_centroid_y:
+        - first_timepoint, last_timepoint: The first and last frames in which each event occurs.
+        - total_size: The total number of unique objects involved in each event
+            (calculated if obj_id_column is provided).
+        - min_size, max_size: The minimum and maximum size of each event,
+            defined as the number of objects in the event's smallest and largest frames, respectively.
+        - first_frame_centroid_x, first_frame_centroid_y, last_frame_centroid_x, last_frame_centroid_y:
             The x and y coordinates of the centroid of all objects in the first and last frames of each event
             (calculated if posCol is provided).
-        centroid_speed: The speed of the centroid, calculated as the distance between the first and last frame centroids
-            divided by the duration (calculated if posCol is provided).
-        direction: The direction of motion of the centroid, calculated as the arctangent of the change in y divided
+        - centroid_speed: The speed of the centroid, calculated as the distance between
+            the first and last frame centroids divided by the duration (calculated if posCol is provided).
+        - direction: The direction of motion of the centroid, calculated as the arctangent of the change in y divided
             the change in x (calculated if posCol is provided).
-        first_frame_spatial_extent, last_frame_spatial_extent: The maximum distance between any pair of objects in the
+        - first_frame_spatial_extent, last_frame_spatial_extent: The maximum distance between any pair of objects in the
         first and last frames (calculated if posCol is provided).
-        first_frame_convex_hull_area, last_frame_convex_hull_area: The areas of the convex hulls enclosing all objects
+        - first_frame_convex_hull_area, last_frame_convex_hull_area: The areas of the convex hulls enclosing all objects
             in the first and last frames (calculated if posCol is provided).
-        size_variability: The standard deviation of the event size over all frames, providing a measure of the
+        - size_variability: The standard deviation of the event size over all frames, providing a measure of the
             variability in the size of the event over time (calculated if obj_id_column is provided).
     """
     # Error handling: Check if necessary columns are present in the input data

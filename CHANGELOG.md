@@ -6,10 +6,12 @@
 ### Changed
 - Updated input data validation for remove_background function
 - ImageTracker, DataFrameTracker, remove_background can be imported from arcos4py.tools
+- Updated api documentation
 
 ### Added
-- Added new function to calculate more statistics
-- Added new function to calculate statistics per frame
+- Added new function to calculate more statistics of collective events
+- Added new function to calculate statistics per frame of collective events
+- Accont for downsampling in in track_events_image fuction for parameters
 
 ## [0.2.1] - 2023-08-09
 ### Fixed

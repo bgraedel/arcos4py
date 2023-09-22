@@ -43,6 +43,8 @@ def downscale_image(image, scale_factor):
     """
     # Since the input is binary, we want to use the mode 'reflect' to keep the binary values
     # Order 0 is Nearest-neighbor sampling, suitable for binary images.
+    if scale_factor == 1:
+        return image
     scale_factor = 1 / scale_factor
     downscaled_image = rescale(image, scale_factor, mode='reflect', order=0, anti_aliasing=False)
 
@@ -656,7 +658,7 @@ class Linker:
         self._nn_tree = KDTree(coords)
 
     # @profile
-    def link(self, input_coordinates: np.ndarray):
+    def link(self, input_coordinates: np.ndarray) -> None:
         """Links clusters from the previous frame to the current frame.
 
         Arguments:
@@ -846,14 +848,14 @@ class DataFrameTracker(BaseTracker):
         return data
 
     # @profile
-    def track_iteration(self, x: pd.DataFrame):
+    def track_iteration(self, x: pd.DataFrame) -> pd.DataFrame:
         """Tracks events in a single frame. Returns dataframe with event ids.
 
         Arguments:
-            x (np.ndarray): Image to track.
+            x (pd.DataFrame): Dataframe to track.
 
         Returns:
-            np.ndarray: Tracked labels.
+            pd.DataFrame: Dataframe with event ids.
         """
         x_filtered = self._filter_active(x, self._bin_meas_column)
 
@@ -971,7 +973,7 @@ class ImageTracker(BaseTracker):
 
         return out_img
 
-    def track_iteration(self, x: np.ndarray):
+    def track_iteration(self, x: np.ndarray) -> np.ndarray:
         """Tracks events in a single frame. Returns the tracked labels.
 
         Arguments:
@@ -980,8 +982,7 @@ class ImageTracker(BaseTracker):
         Returns:
             np.ndarray: Tracked labels.
         """
-        if self._downsample > 1:
-            x = downscale_image(x, self._downsample)
+        x = downscale_image(x, self._downsample)
         coordinates_data, meas_data = self._image_to_coordinates(x)
         coordinates_data_filtered = self._filter_active(coordinates_data, meas_data)
 
@@ -1141,11 +1142,22 @@ def track_events_image(
     Returns:
         np.ndarray: Array of images with tracked events.
     """
+    # Determine the dimensionality
+    spatial_dims = set("XYZ")
+    D = len([d for d in dims if d in spatial_dims])
+
+    if epsPrev is None:
+        epsPrev = eps
+
+    # Adjust parameters based on dimensionality
+    adjusted_minClSz = int(minClSz / (downsample**D))
+    adjusted_minSamples = int(minSamples / (downsample**D)) if minSamples is not None else None
+
     linker = Linker(
         eps=eps / downsample,
-        epsPrev=epsPrev,
-        minClSz=minClSz,
-        minSamples=minSamples,
+        epsPrev=epsPrev / downsample,
+        minClSz=adjusted_minClSz,
+        minSamples=adjusted_minSamples,
         clusteringMethod=clusteringMethod,
         linkingMethod=linkingMethod,
         nPrev=nPrev,
