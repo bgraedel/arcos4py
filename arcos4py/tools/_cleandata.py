@@ -132,7 +132,7 @@ def remove_image_background(
 
     if filter_type not in allowed_filters:
         raise ValueError(f'Filter type must be one of {allowed_filters}.')
-    
+
     # get index of time axis
     t_idx = dims_list.index("T")
 

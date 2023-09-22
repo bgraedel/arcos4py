@@ -56,6 +56,11 @@ plugins:
               [arcos4py]
             options:
               show_submodules: true
+              docstring_options:
+                ignore_init_summary: true
+              merge_init_into_class: true
+              filters:
+              - "!^_"
 watch:
   - arcos4py
 extra:

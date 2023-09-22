@@ -43,6 +43,8 @@ def downscale_image(image, scale_factor):
     """
     # Since the input is binary, we want to use the mode 'reflect' to keep the binary values
     # Order 0 is Nearest-neighbor sampling, suitable for binary images.
+    if scale_factor == 1:
+        return image
     scale_factor = 1 / scale_factor
     downscaled_image = rescale(image, scale_factor, mode='reflect', order=0, anti_aliasing=False)
 
@@ -526,7 +528,7 @@ class Linker:
     def __init__(
         self,
         eps: float = 1,
-        epsPrev: int | None = None,
+        epsPrev: float | None = None,
         minClSz: int = 1,
         minSamples: int | None = None,
         clusteringMethod: str | Callable = "dbscan",
@@ -540,7 +542,7 @@ class Linker:
         Arguments:
             eps (float): The maximum distance between two samples for one to be considered as in
                 the neighbourhood of the other.
-            epsPrev (int | None): Frame to frame distance, value is used to connect
+            epsPrev (float | None): Frame to frame distance, value is used to connect
                 collective events across multiple frames. If "None", same value as eps is used.
             minClSz (int): The minimum size for a cluster to be identified as a collective event.
             minSamples (int | None): The number of samples (or total weight) in a neighbourhood for a
@@ -656,7 +658,7 @@ class Linker:
         self._nn_tree = KDTree(coords)
 
     # @profile
-    def link(self, input_coordinates: np.ndarray):
+    def link(self, input_coordinates: np.ndarray) -> None:
         """Links clusters from the previous frame to the current frame.
 
         Arguments:
@@ -846,14 +848,14 @@ class DataFrameTracker(BaseTracker):
         return data
 
     # @profile
-    def track_iteration(self, x: pd.DataFrame):
+    def track_iteration(self, x: pd.DataFrame) -> pd.DataFrame:
         """Tracks events in a single frame. Returns dataframe with event ids.
 
         Arguments:
-            x (np.ndarray): Image to track.
+            x (pd.DataFrame): Dataframe to track.
 
         Returns:
-            np.ndarray: Tracked labels.
+            pd.DataFrame: Dataframe with event ids.
         """
         x_filtered = self._filter_active(x, self._bin_meas_column)
 
@@ -971,7 +973,7 @@ class ImageTracker(BaseTracker):
 
         return out_img
 
-    def track_iteration(self, x: np.ndarray):
+    def track_iteration(self, x: np.ndarray) -> np.ndarray:
         """Tracks events in a single frame. Returns the tracked labels.
 
         Arguments:
@@ -980,8 +982,7 @@ class ImageTracker(BaseTracker):
         Returns:
             np.ndarray: Tracked labels.
         """
-        if self._downsample > 1:
-            x = downscale_image(x, self._downsample)
+        x = downscale_image(x, self._downsample)
         coordinates_data, meas_data = self._image_to_coordinates(x)
         coordinates_data_filtered = self._filter_active(coordinates_data, meas_data)
 
@@ -1039,7 +1040,7 @@ def track_events_dataframe(
     bin_meas_column: str | None = None,
     collid_column: str = "collid",
     eps: float = 1.0,
-    epsPrev: int | None = None,
+    epsPrev: float | None = None,
     minClSz: int = 3,
     minSamples: int | None = None,
     clusteringMethod: str = "dbscan",
@@ -1105,7 +1106,7 @@ def track_events_dataframe(
 def track_events_image(
     X: np.ndarray,
     eps: float = 1,
-    epsPrev: int | None = None,
+    epsPrev: float | None = None,
     minClSz: int = 1,
     minSamples: int | None = None,
     clusteringMethod: str = "dbscan",
@@ -1141,11 +1142,20 @@ def track_events_image(
     Returns:
         np.ndarray: Array of images with tracked events.
     """
+    # Determine the dimensionality
+    spatial_dims = set("XYZ")
+    D = len([d for d in dims if d in spatial_dims])
+
+    # Adjust parameters based on dimensionality
+    adjusted_epsPrev = epsPrev / downsample if epsPrev is not None else None
+    adjusted_minClSz = int(minClSz / (downsample**D))
+    adjusted_minSamples = int(minSamples / (downsample**D)) if minSamples is not None else None
+
     linker = Linker(
         eps=eps / downsample,
-        epsPrev=epsPrev,
-        minClSz=minClSz,
-        minSamples=minSamples,
+        epsPrev=adjusted_epsPrev,
+        minClSz=adjusted_minClSz,
+        minSamples=adjusted_minSamples,
         clusteringMethod=clusteringMethod,
         linkingMethod=linkingMethod,
         nPrev=nPrev,
@@ -1193,7 +1203,7 @@ class detectCollev:
         self,
         input_data: Union[pd.DataFrame, np.ndarray],
         eps: float = 1,
-        epsPrev: Union[int, None] = None,
+        epsPrev: Union[float, None] = None,
         minClSz: int = 1,
         nPrev: int = 1,
         posCols: list = ["x"],
@@ -1216,7 +1226,7 @@ class detectCollev:
             eps (float): The maximum distance between two samples for one to be considered as in
                 the neighbourhood of the other.
                 This is not a maximum bound on the distances of points within a cluster.
-            epsPrev (int | None): Frame to frame distance, value is used to connect
+            epsPrev (float | None): Frame to frame distance, value is used to connect
                 collective events across multiple frames.If "None", same value as eps is used.
             minClSz (int): Minimum size for a cluster to be identified as a collective event.
             nPrev (int): Number of previous frames the tracking

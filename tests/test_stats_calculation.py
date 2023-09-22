@@ -1,9 +1,9 @@
-import pandas as pd
 import numpy as np
-
+import pandas as pd
 import pytest
-from arcos4py.tools import calculate_statistics, calculate_statistics_per_frame
 from scipy.spatial.distance import pdist
+
+from arcos4py.tools import calculate_statistics, calculate_statistics_per_frame
 
 
 @pytest.fixture

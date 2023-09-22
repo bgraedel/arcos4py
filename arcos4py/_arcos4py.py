@@ -182,7 +182,7 @@ class ARCOS:
     def trackCollev(
         self,
         eps: float = 1,
-        epsPrev: Union[int, None] = None,
+        epsPrev: Union[float, None] = None,
         minClsz: int = 1,
         nPrev: int = 1,
         clusteringMethod: str = "dbscan",
