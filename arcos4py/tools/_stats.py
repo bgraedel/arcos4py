@@ -10,7 +10,7 @@ from typing import List, Union
 
 import numpy as np
 import pandas as pd
-from scipy.spatial import ConvexHull
+from scipy.spatial import ConvexHull, QhullError
 from scipy.spatial.distance import pdist
 
 
@@ -78,9 +78,12 @@ def calculate_statistics_per_frame(
             frame_stats['spatial_extent'] = spatial_extent
 
             # Calculate convex hull area
-            convex_hull_area = (
-                ConvexHull(group_data[pos_columns].values).volume if len(group_data) > len(pos_columns) else 0
-            )
+            try:
+                convex_hull_area = (
+                    ConvexHull(group_data[pos_columns].values).volume if len(group_data) > len(pos_columns) else 0
+                )
+            except QhullError:
+                convex_hull_area = 0
             frame_stats['convex_hull_area'] = convex_hull_area
 
         stats_list.append(frame_stats)
@@ -251,9 +254,12 @@ def calculate_statistics(
                 collid_stats[f'{frame_name}_spatial_extent'] = spatial_extent
 
                 # Calculate convex hull area
-                convex_hull_area = (
-                    ConvexHull(frame_data[pos_columns].values).volume if len(frame_data) > len(pos_columns) else 0
-                )
+                try:
+                    convex_hull_area = (
+                        ConvexHull(frame_data[pos_columns].values).volume if len(frame_data) > len(pos_columns) else 0
+                    )
+                except QhullError:
+                    convex_hull_area = 0
                 collid_stats[f'{frame_name}_convex_hull_area'] = convex_hull_area
 
         stats_list.append(collid_stats)
