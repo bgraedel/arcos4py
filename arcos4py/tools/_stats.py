@@ -56,15 +56,15 @@ def calculate_statistics_per_frame(
         if col not in data.columns and col is not None:
             raise ValueError(f"The column '{col}' is not present in the input data.")
 
-    data = data.rename(columns={frame_column: 'frame', collid_column: 'collid'})
-    collid_groups = data.groupby(['frame', 'collid'])
+    data = data.rename(columns={frame_column: frame_column, collid_column: collid_column})
+    collid_groups = data.groupby([frame_column, collid_column])
     stats_list = []
 
     for (frame, collid), group_data in collid_groups:
 
-        frame_stats = {'collid': collid, 'frame': frame}
+        frame_stats = {collid_column: collid, frame_column: frame}
 
-        frame_stats['size'] = group_data.count()['frame']
+        frame_stats['size'] = group_data.count()[frame_column]
 
         # If pos_columns are provided, calculate spatial statistics for this frame
         if pos_columns:
@@ -93,10 +93,10 @@ def calculate_statistics_per_frame(
 
     # If pos_columns are provided, we can calculate speed and direction by looking at changes between frames
     if pos_columns:
-        stats_df.sort_values(by=['collid', 'frame'], inplace=True)
+        stats_df.sort_values(by=[collid_column, frame_column], inplace=True)
 
         for i, col in enumerate(pos_columns):
-            stats_df[f'delta_{col}'] = stats_df.groupby('collid')[f'centroid_{col}'].diff()
+            stats_df[f'delta_{col}'] = stats_df.groupby(collid_column)[f'centroid_{col}'].diff()
 
         # Calculate speed (the norm of the delta vector)
         stats_df['centroid_speed'] = np.linalg.norm(stats_df[[f'delta_{col}' for col in pos_columns]].values, axis=1)
@@ -166,23 +166,20 @@ def calculate_statistics(
         if col not in data.columns and col is not None:
             raise ValueError(f"The column '{col}' is not present in the input data.")
 
-    # Rename columns for easier reference
-    data = data.rename(columns={frame_column: 'frame', collid_column: 'collid'})
-
-    collid_groups = data.groupby('collid')
+    collid_groups = data.groupby(collid_column)
 
     # Initialize an empty list to store the statistics
     stats_list = []
 
     for collid, group_data in collid_groups:
 
-        collid_stats = {'collid': collid}
+        collid_stats = {collid_column: collid}
 
-        # Grouping by 'collid' to get initial statistics
-        duration = group_data['frame'].max() - group_data['frame'].min() + 1
+        # Grouping by collid_column to get initial statistics
+        duration = group_data[frame_column].max() - group_data[frame_column].min() + 1
         collid_stats['duration'] = duration
-        collid_stats['first_timepoint'] = group_data['frame'].min()
-        collid_stats['last_timepoint'] = group_data['frame'].max()
+        collid_stats['first_timepoint'] = group_data[frame_column].min()
+        collid_stats['last_timepoint'] = group_data[frame_column].max()
 
         # If obj_id_column is provided, calculate size related stats
         if obj_id_column:
@@ -191,7 +188,7 @@ def calculate_statistics(
             collid_stats['total_size'] = total_size
 
         # calculate min and max size based on the number of objects in each frame
-        frame_size_stats = group_data.groupby('frame').size()
+        frame_size_stats = group_data.groupby(frame_column).size()
         collid_stats['min_size'] = frame_size_stats.min()
         collid_stats['max_size'] = frame_size_stats.max()
 
@@ -200,7 +197,7 @@ def calculate_statistics(
             tp_1 = collid_stats['first_timepoint']
             tp_2 = collid_stats['last_timepoint']
 
-            centroid_data = group_data.groupby('frame')[pos_columns].mean().reset_index()
+            centroid_data = group_data.groupby(frame_column)[pos_columns].mean().reset_index()
 
             for col in pos_columns:
                 collid_stats[f'first_frame_centroid_{col}'] = centroid_data.query(f'frame == {tp_1}')[col].to_numpy()[0]
@@ -270,9 +267,9 @@ def calculate_statistics(
     # Calculate size variability
     if obj_id_column:
         # Calculating size for each collid and frame
-        frame_size_stats = data.groupby(['collid', 'frame'])[obj_id_column].nunique().reset_index(name='size')
-        size_variability = frame_size_stats.groupby('collid')['size'].std().reset_index(name='size_variability')
-        stats_df = stats_df.merge(size_variability, on='collid', how='left')
+        frame_size_stats = data.groupby([collid_column, frame_column])[obj_id_column].nunique().reset_index(name='size')
+        size_variability = frame_size_stats.groupby(collid_column)['size'].std().reset_index(name='size_variability')
+        stats_df = stats_df.merge(size_variability, on=collid_column, how='left')
 
     return stats_df
 
