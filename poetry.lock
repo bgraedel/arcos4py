@@ -2603,4 +2603,4 @@ test = ["PyYAML", "black", "flake8", "flake8-docstrings", "isort", "mypy", "pyte
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9.1"
-content-hash = "3ead20d0d4844e46d3949a97ddfb6f57f73b77c5300b38ca264e400673203e21"
+content-hash = "a547410b8bc76fbfabaa0557f032e607cabee5b43d7b56ad48437914a4b31019"
