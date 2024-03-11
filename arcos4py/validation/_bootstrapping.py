@@ -391,9 +391,9 @@ def _p_val_finite_sampling(x: pd.DataFrame, alternative: str = 'greater') -> pd.
     orig = x[0]
     df_test = x[1:]
     if alternative == 'greater':
-        return pd.Series({'>=': (1 + sum(df_test >= orig)) / (len(df_test) + 1)})
+        return pd.Series({'>=': (1 + sum(df_test <= orig)) / (len(df_test) + 1)})
     elif alternative == 'less':
-        return pd.Series({'<=': (1 + sum(df_test <= orig)) / (len(df_test) + 1)})
+        return pd.Series({'<=': (1 + sum(df_test >= orig)) / (len(df_test) + 1)})
     elif alternative == 'both':
         warn(
             'Combined p-values will not add up to 1 due to the fact that greater\
@@ -401,8 +401,8 @@ def _p_val_finite_sampling(x: pd.DataFrame, alternative: str = 'greater') -> pd.
         )
         return pd.Series(
             {
-                '>=': (1 + sum(df_test >= orig)) / (len(df_test) + 1),
-                '<=': (1 + sum(df_test <= orig)) / (len(df_test) + 1),
+                '>=': (1 + sum(df_test <= orig)) / (len(df_test) + 1),
+                '<=': (1 + sum(df_test >= orig)) / (len(df_test) + 1),
             }
         )
     else:
@@ -413,13 +413,13 @@ def _p_val_infinite_sampling(x: pd.DataFrame, alternative: str = 'greater') -> p
     orig = x[0]
     df_test = x[1:]
     if alternative == 'greater':
-        return pd.Series({'>=': sum(df_test >= orig) / len(df_test)})
+        return pd.Series({'>=': sum(df_test <= orig) / len(df_test)})
     elif alternative == 'less':
-        return pd.Series({'<=': sum(df_test <= orig) / len(df_test)})
+        return pd.Series({'<=': sum(df_test >= orig) / len(df_test)})
     elif alternative == 'both':
         warn(
             'Combined p-values will not add up to 1 due to the fact that greater and equal and less and equal are not mutually exclusive.'  # noqa: E501
         )
-        return pd.Series({'>=': sum(df_test >= orig) / len(df_test), '<=': sum(df_test <= orig) / len(df_test)})
+        return pd.Series({'>=': sum(df_test <= orig) / len(df_test), '<=': sum(df_test >= orig) / len(df_test)})
     else:
         raise ValueError(f'alternative must be one of "greater", "less", or "both". Got {alternative}')

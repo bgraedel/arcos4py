@@ -1,0 +1,5 @@
+Collecting poetry-core
+  Using cached poetry_core-1.9.0-py3-none-any.whl.metadata (3.5 kB)
+Using cached poetry_core-1.9.0-py3-none-any.whl (309 kB)
+Installing collected packages: poetry-core
+Successfully installed poetry-core-1.9.0
