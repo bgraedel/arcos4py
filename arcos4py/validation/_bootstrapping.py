@@ -10,7 +10,7 @@ import seaborn as sns
 from tqdm import tqdm
 
 from arcos4py import ARCOS
-from arcos4py.tools import calcCollevStats, filterCollev
+from arcos4py.tools import calculate_statistics, filterCollev
 
 from ..tools._arcos4py_deprecation import handle_deprecated_params
 from ._resampling import resample_data
@@ -18,10 +18,10 @@ from ._resampling import resample_data
 
 def bootstrap_arcos(
     df: pd.DataFrame,
-    position_columns: list,
-    frame_column: str,
-    obj_id_column: str,
-    measurement_column: str,
+    position_columns: list = ['x'],
+    frame_column: str = 'frame',
+    obj_id_column: str = 'obj_id',
+    measurement_column: str = 'm',
     method: str | list[str] = 'shuffle_tracks',
     smooth_k: int = 3,
     bias_k: int = 51,
@@ -280,10 +280,10 @@ def calculate_pvalue(
 def calculate_arcos_stats(
     df_resampled: pd.DataFrame,
     iterations: list[int],
-    position_columns: list,
-    frame_column: str,
-    obj_id_column: str,
-    measurement_column: str,
+    position_columns: list = ['x'],
+    frame_column: str = 'frame',
+    obj_id_column: str = 'obj_id',
+    measurement_column: str = 'm',
     smooth_k: int = 3,
     bias_k: int = 51,
     peak_threshold: float = 0.2,
@@ -337,7 +337,10 @@ def calculate_arcos_stats(
             - binThr: Deprecated. Use binarization_threshold instead.
             - polyDeg: Deprecated. Use polynomial_degree instead.
             - biasMet: Deprecated. Use bias_method instead.
+            - epsPrev: Deprecated. Use eps_prev instead.
+            - minClsz: Deprecated. Use min_clustersize instead.
             - min_size: Deprecated. Use min_total_size instead.
+            - nPrev: Deprecated. Use n_prev instead.
             - paralell_processing: Deprecated. Use parallel_processing instead.
 
     Returns:
@@ -354,6 +357,9 @@ def calculate_arcos_stats(
         "binThr": "binarization_threshold",
         "polyDeg": "polynomial_degree",
         "biasMet": "bias_method",
+        "epsPrev": "eps_prev",
+        "minClsz": "min_clustersize",
+        "nPrev": "n_prev",
         "min_size": "min_total_size",
         "paralell_processing": "parallel_processing",
         "clid_name": "clid_column",
@@ -374,12 +380,15 @@ def calculate_arcos_stats(
     smooth_k = updated_kwargs.get("smooth_k", smooth_k)
     bias_k = updated_kwargs.get("bias_k", bias_k)
     peak_threshold = updated_kwargs.get("peak_threshold", peak_threshold)
-    binarization_threshold = updated_kwargs.get("binarize_threshold", binarization_threshold)
+    binarization_threshold = updated_kwargs.get("binarization_threshold", binarization_threshold)
     polynomial_degree = updated_kwargs.get("polynomial_degree", polynomial_degree)
     bias_method = updated_kwargs.get("bias_method", bias_method)
     min_total_size = updated_kwargs.get("min_total_size", min_total_size)
     parallel_processing = updated_kwargs.get("parallel_processing", parallel_processing)
     clid_column = updated_kwargs.get("clid_column", clid_column)
+    min_clustersize = updated_kwargs.get("min_clustersize", min_clustersize)
+    eps_prev = updated_kwargs.get("eps_prev", eps_prev)
+    n_prev = updated_kwargs.get("n_prev", n_prev)
 
     if parallel_processing:
         from joblib import Parallel, delayed
@@ -494,8 +503,8 @@ def _apply_arcos(
     if i_iter == 0 and df_arcos.empty:
         raise ValueError('No events detected in control, consider changing parameters')
 
-    stats_df = calcCollevStats().calculate(
-        df_arcos_filtered, frame_column, clid_column, obj_id_column, position_columns
+    stats_df = calculate_statistics(
+        data=df_arcos_filtered, frame_column=frame_column, clid_column=clid_column, obj_id_column=obj_id_column
     )
     stats_df['bootstrap_iteration'] = i_iter
     return stats_df

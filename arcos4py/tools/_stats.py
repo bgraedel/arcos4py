@@ -18,8 +18,8 @@ from ._arcos4py_deprecation import handle_deprecated_params
 
 def calculate_statistics_per_frame(
     data: pd.DataFrame,
-    frame_column: str,
-    clid_column: str,
+    frame_column: str = "frame",
+    clid_column: str = "collid",
     position_columns: Union[List[str], None] = None,
     **kwargs,
 ) -> pd.DataFrame:
@@ -143,8 +143,8 @@ def calculate_statistics_per_frame(
 
 def calculate_statistics(
     data: pd.DataFrame,
-    frame_column: str,
-    clid_column: str,
+    frame_column: str = "frame",
+    clid_column: str = "collid",
     obj_id_column: Union[str, None] = None,
     position_columns: Union[List[str], None] = None,
     **kwargs,

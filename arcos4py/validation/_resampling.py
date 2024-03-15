@@ -264,9 +264,9 @@ def shift_timepoints_per_trajectory(
 
 def resample_data(  # noqa: C901
     data: pd.DataFrame,
-    position_columns: list,
-    frame_column: str,
-    obj_id_column: str,
+    position_columns: list = ['x'],
+    frame_column: str = 'frame',
+    obj_id_column: str = 'obj_id',
     measurement_column: Union[str, None] = None,
     method: Union[str, list[str]] = 'shuffle_tracks',
     n=100,

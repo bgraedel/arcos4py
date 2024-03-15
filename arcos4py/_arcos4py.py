@@ -82,7 +82,7 @@ class ARCOS:
                 - posCols: List containing position column names strings inside data e.g.
         """
         # allowed kwargs
-        allowed_kwargs = ["posCols"]
+        allowed_kwargs = ["posCols", "id_column"]
         for key in kwargs:
             if key not in allowed_kwargs:
                 raise ValueError(f"__init__() got an unexpected keyword argument '{key}'")
@@ -95,6 +95,7 @@ class ARCOS:
 
         # Assign updated kwargs to class attributes
         position_columns = updated_kwargs.get("position_columns", position_columns)
+        obj_id_column = updated_kwargs.get("obj_id_column", obj_id_column)
 
         self.data = data
         self.position_columns = position_columns

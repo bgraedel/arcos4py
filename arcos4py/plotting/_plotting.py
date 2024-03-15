@@ -69,7 +69,14 @@ class dataPlots:
         obj_id_column (str): name of track id column.
     """
 
-    def __init__(self, data: pd.DataFrame, frame_column: str, measurement_column: str, obj_id_column: str, **kwargs):
+    def __init__(
+        self,
+        data: pd.DataFrame,
+        frame_column: str = 'frame',
+        measurement_column: str = 'm',
+        obj_id_column: str = 'obj_id',
+        **kwargs,
+    ):
         """Plot different metrics such as histogram, position-t and density.
 
         Arguments:
@@ -220,10 +227,10 @@ class plotOriginalDetrended:
     def __init__(
         self,
         data: pd.DataFrame,
-        frame_column: str,
-        measurement_column: str,
-        detrended_column: str,
-        obj_id_column: str,
+        frame_column: str = "frame",
+        measurement_column: str = "m",
+        detrended_column: str = "m_detrended",
+        obj_id_column: str = "obj_id",
         seed: int = 42,
         **kwargs,
     ):
@@ -430,11 +437,11 @@ class NoodlePlot:
     def __init__(
         self,
         df: pd.DataFrame,
-        clid_column: str,
-        obj_id_column: str,
-        frame_column: str,
-        posx: str,
-        posy: str,
+        clid_column: str = "collid",
+        obj_id_column: str = "obj_id",
+        frame_column: str = "frame",
+        posx: str = "x",
+        posy: str = "y",
         posz: Union[str, None] = None,
         **kwargs,
     ):
