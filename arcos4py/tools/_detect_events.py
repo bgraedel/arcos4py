@@ -573,6 +573,7 @@ class Linker:
             'minClSz': 'min_clustersize',
             'minSamples': 'min_samples',
             'clusteringMethod': 'clustering_method',
+            'linkingMethod': 'linking_method',
             'nPrev': 'n_prev',
             'nJobs': 'n_jobs',
         }
@@ -796,30 +797,52 @@ class DataFrameTracker(BaseTracker):
     def __init__(
         self,
         linker: Linker,
-        coordinates_column: list[str],
-        frame_column: str,
-        id_column: str | None = None,
+        position_columns: list[str] = ['x'],
+        frame_column: str = 'frame',
+        obj_id_column: str | None = None,
         binarized_measurement_column: str | None = None,
-        collid_column: str = 'clTrackID',
+        clid_column: str = 'clTrackID',
+        **kwargs,
     ):
         """Initializes the DataFrameTracker object.
 
         Arguments:
             linker (Linker): The Linker object used for linking events.
-            coordinates_column (list[str]): List of strings representing the coordinate columns.
+            position_columns (list[str]): List of strings representing the coordinate columns.
             frame_column (str): String representing the frame/timepoint column in the dataframe.
-            id_column (str | None): String representing the ID column, or None if not present. Defaults to None.
+            obj_id_column (str | None): String representing the ID column, or None if not present. Defaults to None.
             binarized_measurement_column (str | None): String representing the binary measurement column, or None if not present.
                 Defaults to None.
-            collid_column (str): String representing the collision track ID column. Defaults to 'clTrackID'.
+            clid_column (str): String representing the collision track ID column. Defaults to 'clTrackID'.
+            kwargs (Any): Additional keyword arguments. Includes deprecated parameters for backwards compatibility.
+                - coordinates_column: Deprecated parameter for position_columns. Use position_columns instead.
+                - collid_column: Deprecated parameter, use clid_column instead.
+                - id_column: Deprecated parameter, use obj_id_column instead.
+                - bin_meas_column: Deprecated parameter, use binarized_measurement_column instead.
         """
+        map_deprecated_params = {
+            'coordinates_column': 'position_columns',
+            'collid_column': 'clid_column',
+            'id_column': 'obj_id_column',
+            'bin_meas_column': 'binarized_measurement_column',
+        }
+        corrected_kwargs = handle_deprecated_params(map_deprecated_params, **kwargs)
+
+        # Assign parameters
+        position_columns = corrected_kwargs.get('position_columns', position_columns)
+        obj_id_column = corrected_kwargs.get('obj_id_column', obj_id_column)
+        binarized_measurement_column = corrected_kwargs.get(
+            'binarized_measurement_column', binarized_measurement_column
+        )
+        clid_column = corrected_kwargs.get('clid_column', clid_column)
+
         super().__init__(linker)
-        self._coordinates_column = coordinates_column
+        self._coordinates_column = position_columns
         self._frame_column = frame_column
-        self._id_column = id_column
+        self._id_column = obj_id_column
         self._binarized_measurement_column = binarized_measurement_column
-        self._collid_column = collid_column
-        self._validate_input(coordinates_column, frame_column, id_column, binarized_measurement_column, collid_column)
+        self._collid_column = clid_column
+        self._validate_input(position_columns, frame_column, obj_id_column, binarized_measurement_column, clid_column)
 
     def _validate_input(
         self,
@@ -1167,11 +1190,11 @@ def track_events_dataframe(
     )
     tracker = DataFrameTracker(
         linker=linker,
-        coordinates_column=position_columns,
+        position_columns=position_columns,
         frame_column=frame_column,
-        id_column=id_column,
+        obj_id_column=id_column,
         binarized_measurement_column=binarized_measurement_column,
-        collid_column=clid_column,
+        clid_column=clid_column,
     )
     df_out = pd.concat(
         [timepoint for timepoint in tqdm(tracker.track(X), total=X[frame_column].nunique(), disable=not show_progress)]

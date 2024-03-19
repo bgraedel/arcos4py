@@ -400,3 +400,75 @@ class ARCOS:
         )
 
         return data_events
+
+    @property
+    def bin_col(self) -> str | None:
+        """Return the name of the binarized measurement column."""
+        # Issue a deprecation warning
+        warnings.warn(
+            "The 'bin_col' attribute is deprecated and will be removed in a future version.\
+            Please use 'binarized_measurement_column' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.binarized_measurement_column
+
+    @bin_col.setter
+    def bin_col(self, value: str | None) -> None:
+        """Set the name of the binarized measurement column."""
+        # Issue a deprecation warning
+        warnings.warn(
+            "The 'bin_col' attribute is deprecated and will be removed in a future version.\
+            Please use 'binarized_measurement_column' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.binarized_measurement_column = value
+
+    @property
+    def posCols(self) -> list:
+        """Return the position columns."""
+        # Issue a deprecation warning
+        warnings.warn(
+            "The 'posCols' attribute is deprecated and will be removed in a future version.\
+            Please use 'position_columns' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.position_columns
+
+    @posCols.setter
+    def posCols(self, value: list) -> None:
+        """Set the position columns."""
+        # Issue a deprecation warning
+        warnings.warn(
+            "The 'posCols' attribute is deprecated and will be removed in a future version.\
+            Please use 'position_columns' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.position_columns = value
+
+    @property
+    def id_column(self) -> str | None:
+        """Return the name of the id column."""
+        # Issue a deprecation warning
+        warnings.warn(
+            "The 'id_column' attribute is deprecated and will be removed in a future version.\
+            Please use 'obj_id_column' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.obj_id_column
+
+    @id_column.setter
+    def id_column(self, value: str | None) -> None:
+        """Set the name of the id column."""
+        # Issue a deprecation warning
+        warnings.warn(
+            "The 'id_column' attribute is deprecated and will be removed in a future version.\
+            Please use 'obj_id_column' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.obj_id_column = value

@@ -1,18 +1,8 @@
-# Changelog
-## [0.2.5] - 2024-05-20
+## [0.2.4] - 2024-03-19
 ### Added
 - Support for python 3.12
 - Drop support for python 3.8
 
-### Changed
-- changes to parameter names to unify naming conventions across packages
-old Parameter names are still supported but will be deprecated in the future.
-- updated documentation to reflect changes in parameter names
-- Noodleplot supports kwargs for plot customization
-- Changes to the way p value is represented on the validation plots
-- Validation plots now dont include original metrics
-
-## [0.2.4] - 2024-02-13
 ### Fixed
 - Hard-coded column names in stats functions
 - False example for a plot in the documentation
@@ -25,6 +15,13 @@ old Parameter names are still supported but will be deprecated in the future.
 ### Fixed
 - Noodle plot would produce an axis error if no collective events were detected
 - Noodle plot would produce false results if object id was not an integer
+- changes to parameter names to unify naming conventions across packages
+old Parameter names are still supported but will be deprecated in the future.
+- updated documentation to reflect changes in parameter names
+- Noodleplot supports kwargs for plot customization
+- Changes to the way p value is represented on the validation plots
+- Validation plots now dont include original metrics
+
 
 ### Changed
 - More input data validation for stats functions
