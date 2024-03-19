@@ -10,11 +10,6 @@
 ### Changed
 - Updated plotOriginalDetrended to include separate methods for plotting detrended and original data
 - Updated plotOriginalDetrended to include markers for binarized regions
-
-## [0.2.3] - 2023-10-10
-### Fixed
-- Noodle plot would produce an axis error if no collective events were detected
-- Noodle plot would produce false results if object id was not an integer
 - changes to parameter names to unify naming conventions across packages
 old Parameter names are still supported but will be deprecated in the future.
 - updated documentation to reflect changes in parameter names
@@ -22,6 +17,11 @@ old Parameter names are still supported but will be deprecated in the future.
 - Changes to the way p value is represented on the validation plots
 - Validation plots now dont include original metrics
 
+
+## [0.2.3] - 2023-10-10
+### Fixed
+- Noodle plot would produce an axis error if no collective events were detected
+- Noodle plot would produce false results if object id was not an integer
 
 ### Changed
 - More input data validation for stats functions

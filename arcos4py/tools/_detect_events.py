@@ -826,6 +826,12 @@ class DataFrameTracker(BaseTracker):
             'id_column': 'obj_id_column',
             'bin_meas_column': 'binarized_measurement_column',
         }
+
+        # check for allowed kwargs
+        for key in kwargs:
+            if key not in map_deprecated_params.keys():
+                raise ValueError(f'Invalid keyword argument {key}')
+
         corrected_kwargs = handle_deprecated_params(map_deprecated_params, **kwargs)
 
         # Assign parameters
