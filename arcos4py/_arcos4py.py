@@ -9,13 +9,13 @@ Example:
     >>> ts.interpolate_measurements()
     >>> ts.clip_meas(clip_low = 0.001, clip_high=0.999)
     >>> ts.bin_measurements(
-            smoothK = 3,
-            biasK = 51,
-            peakThr = 0.2,
-            binThr = 0.1,
-            polyDeg = 1,
-            biasMet = "runmed")
-    >>> events_df = ts.trackCollev(eps = 1, minClsz = 1, nPrev = 1)
+            smooth_k = 3,
+            bias_k = 51,
+            peak_threshold = 0.2,
+            binarization_threshold = 0.1,
+            polynomial_degree = 1,
+            bias_method = "runmed")
+    >>> events_df = ts.trackCollev(eps = 1, min_clustersize = 1, n_prev = 1)
 """
 
 from __future__ import annotations
@@ -43,10 +43,10 @@ class ARCOS:
     Attributes:
         data (DataFrame): Data of tracked time-series in "long format". Can be used to
             acess modified dataframe at any point.
-        posCols (list): List containing position column names strings inside data e.g.
+        position_columns (list): List containing position column names strings inside data e.g.
             At least one dimension is required.
         frame_column (str): Indicating the frame column in input_data.
-        id_column (str): Indicating the track id/id column in input_data.
+        obj_id_column (str): Indicating the track id/id column in input_data.
         measurement_column (str): Indicating the measurement column in input_data.
         clid_column (str): Indicating the column name containing the collective event ids.
         binarized_measurement_column (str | None): Name of the binary column.
