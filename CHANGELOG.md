@@ -1,4 +1,7 @@
+# Changelog
+
 ## [0.2.4] - 2024-03-19
+
 ### Fixed
 - Hard-coded column names in stats functions
 - False example for a plot in the documentation
@@ -16,7 +19,6 @@ old Parameter names are still supported but will be deprecated in the future.
 ### Added
 - Support for python 3.12
 - Drop support for python 3.8
-
 
 ## [0.2.3] - 2023-10-10
 ### Fixed
