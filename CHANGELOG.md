@@ -1,7 +1,13 @@
 # Changelog
 
-## [0.2.4] - 2024-03-19
+## [0.2.5] - 2024-09-10
+### Fixed
+- scikit-image dependency version
 
+### Changed
+- Updated transportation linking to use the POT library
+
+## [0.2.4] - 2024-03-19
 ### Fixed
 - Hard-coded column names in stats functions
 - False example for a plot in the documentation
