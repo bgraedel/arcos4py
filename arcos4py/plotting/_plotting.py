@@ -608,8 +608,8 @@ class NoodlePlot:
         elif projection_axis == self.posz:
             self.projection_index = 5
         if self.df.empty:
-            grpd_data = []
-            colors = []
+            grpd_data: list[np.ndarray] = []
+            colors: np.ndarray = np.array([])
         else:
             grpd_data, colors = self._prepare_data_noodleplot(
                 self.df,
