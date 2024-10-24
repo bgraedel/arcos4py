@@ -8,6 +8,7 @@ from numpy import int64
 from pandas.testing import assert_frame_equal
 
 from arcos4py import ARCOS
+from arcos4py.tools import track_events_dataframe
 
 
 @pytest.fixture
@@ -277,6 +278,34 @@ def test_split_from_2_objects():
     out = ts.track_collective_events(eps=1.0, eps_prev=1, min_clustersize=1, n_prev=1)
     out = out.drop(columns=['pos'])
     assert_frame_equal(out, df_true, check_like=True)
+
+
+def test_4_colliding_with_allow_merges():
+    """Test colliding event detection on a simple image."""
+    test_df = pd.read_csv('tests/testdata/4obj_merge_allowed.csv')
+    true_df = pd.read_csv('tests/testdata/4obj_merge_allowed_res.csv')
+    # Sort the test data to ensure consistent order
+    test_df = test_df.sort_values(by=['T', 'X', 'Y', 'track_id']).reset_index(drop=True)
+
+    tracked_df, _ = track_events_dataframe(
+        test_df,
+        eps=2,
+        eps_prev=2,
+        min_clustersize=4,
+        n_prev=1,
+        position_columns=['X', 'Y'],
+        frame_column='T',
+        id_column='track_id',
+        allow_merges=True,
+        stability_threshold=1,
+        allow_splits=True,
+    )
+
+    # Sort by relevant columns
+    tracked_df = tracked_df.sort_values(by=['T', 'X', 'Y', 'track_id']).reset_index(drop=True)
+    true_df = true_df.sort_values(by=['T', 'X', 'Y', 'track_id']).reset_index(drop=True)
+
+    assert_frame_equal(tracked_df, true_df, check_dtype=False)
 
 
 def test_cross_2_objects():
