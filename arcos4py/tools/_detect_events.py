@@ -3,6 +3,9 @@
 Example:
     >>> from arcos4py.tools import track_events_image
     >>> ts = track_events_image(data)
+
+    >>> from arcos4py.tools import track_events_dataframe
+    >>> ts = track_events_dataframe(data)
 """
 
 from __future__ import annotations
@@ -10,7 +13,7 @@ from __future__ import annotations
 import functools
 import warnings
 from abc import ABC, abstractmethod
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Generator, List, Tuple, Union
 
@@ -25,6 +28,7 @@ from sklearn.cluster import DBSCAN, HDBSCAN
 from sklearn.neighbors import KDTree
 from tqdm import tqdm
 
+from ..plotting._plotting import LineagePlot
 from ..tools._arcos4py_deprecation import handle_deprecated_params
 
 AVAILABLE_CLUSTERING_METHODS = ['dbscan', 'hdbscan']
@@ -313,6 +317,13 @@ class Memory:
     prev_cluster_ids: list[np.ndarray] = field(default_factory=lambda: [], init=False)
     max_prev_cluster_id: int = 0
 
+    def remove_invalid_ids(self, invalid_ids: set[int]):
+        """Remove all points with invalid IDs from memory."""
+        for i in range(len(self.prev_cluster_ids)):
+            valid_mask = ~np.isin(self.prev_cluster_ids[i], list(invalid_ids))
+            self.coordinates[i] = self.coordinates[i][valid_mask]
+            self.prev_cluster_ids[i] = self.prev_cluster_ids[i][valid_mask]
+
     def update(self, new_coordinates, new_cluster_ids):
         """Updates the coordinates and previous cluster IDs.
 
@@ -321,15 +332,19 @@ class Memory:
             new_cluster_ids (np.ndarray): The new cluster IDs.
         """
         self.remove_timepoint()
-        self.add_timepoint(new_coordinates, new_cluster_ids)
+        self.add_frame(new_coordinates, new_cluster_ids)
 
-    def add_timepoint(self, new_coordinates, new_cluster_ids):
+    def add_frame(self, new_coordinates, new_cluster_ids):
         """Appends new coordinates and cluster IDs to the memory.
 
         Arguments:
             new_coordinates (np.ndarray): The new coordinates.
             new_cluster_ids (np.ndarray): The new cluster IDs.
         """
+        # remove > 0 cluster ids
+        new_coordinates = new_coordinates[new_cluster_ids > 0]
+        new_cluster_ids = new_cluster_ids[new_cluster_ids > 0]
+
         self.coordinates.append(new_coordinates)
         self.prev_cluster_ids.append(new_cluster_ids)
 
@@ -496,14 +511,470 @@ class Predictor:
             self._fitted = True
 
 
-class Linker:
-    """Linker class for linking collective events across multiple frames.
+@dataclass
+class ClusterNode:
+    """Data class representing a node in the lineage tree.
 
     Attributes:
-        event_ids (np.ndarray): Array to store event IDs, for each coordinate in the current frame.
+        cluster_id (int): The cluster ID.
+        minframe (int): The minimum frame number.
+        maxframe (int): The maximum frame number.
+        parents (List[ClusterNode]): The parent nodes.
+        children (List[ClusterNode]): The child nodes.
+        lineage_id (int): The lineage ID.
+
+    """
+
+    cluster_id: int
+    minframe: int
+    maxframe: int
+    parents: List['ClusterNode']
+    children: List['ClusterNode']
+    lineage_id: int  # New attribute to track lineage
+
+    def __init__(self, cluster_id, frame, lineage_id=None):
+        """Initializes a ClusterNode object.
+
+        Arguments:
+            cluster_id (int): The cluster ID.
+            frame (int): The frame number.
+            lineage_id (int): The lineage ID.
+        """
+        self.cluster_id = cluster_id
+        self.minframe = frame
+        self.maxframe = frame
+        self.parents = []
+        self.children = []
+        self.lineage_id = lineage_id if lineage_id is not None else cluster_id
+
+    def __repr__(self):
+        """Returns a string representation of the ClusterNode object."""
+        return f"ClusterNode(id={self.cluster_id}, frames={self.minframe}-{self.maxframe}, lineage={self.lineage_id})"
+
+    def __hash__(self):
+        """Returns a hash of the ClusterNode object."""
+        return hash((self.cluster_id, self.minframe, self.maxframe))
+
+    def __eq__(self, other):
+        """Checks if two ClusterNode objects are equal."""
+        if not isinstance(other, ClusterNode):
+            return False
+        return (self.cluster_id, self.minframe, self.maxframe) == (other.cluster_id, other.minframe, other.maxframe)
+
+
+class LineageTracker:
+    """Class to track the lineage of clusters over time.
+
+    Attributes:
+        nodes (Dict[int, ClusterNode]): Dictionary of cluster IDs to ClusterNode objects.
+        max_parents_count (int): The maximum number of parents for a cluster.
 
     Methods:
-        link(input_coordinates): Links clusters from the previous frame to the current frame.
+        get_cluster_history(cluster_id): Returns the history of a cluster as a list of paths.
+        get_lineage_tree(): Returns the lineage tree as a list of nodes and edges.
+        plot(): Plots the lineage tree.
+    """
+
+    def __init__(self):
+        """Initializes a LineageTracker object."""
+        self.nodes: Dict[int, ClusterNode] = {}
+        self.max_parents_count = 0
+
+    def _add_frame(self, linked_ids, original_ids, frame):
+        for curr_id in set(original_ids):
+            if curr_id == -1:  # Skip noise
+                continue
+            curr_id = int(curr_id)
+            if curr_id in self.nodes:
+                curr_node = self.nodes[curr_id]
+                curr_node.maxframe = frame
+            else:
+                # For new nodes, determine the lineage during creation
+                curr_node = ClusterNode(curr_id, frame)
+                self.nodes[curr_id] = curr_node
+
+            # Determine parent nodes
+            parent_ids = set(linked_ids[original_ids == curr_id])
+            if parent_ids:
+                # Handle splits or merges here
+                # First, filter out invalid or self-referential IDs
+                valid_parents = [int(pid) for pid in parent_ids if pid != -1 and pid != curr_id]
+
+                # Assign lineage during merges
+                if len(valid_parents) > 0:
+                    # Get the lineage from the parent with the larger number of objects
+                    parent_count = {pid: (linked_ids == pid).sum() for pid in valid_parents}
+                    parent_with_most_objects = max(parent_count, key=parent_count.get)
+                    parent_node = self.nodes[parent_with_most_objects]
+
+                    # Assign lineage from the parent with the most objects
+                    curr_node.lineage_id = parent_node.lineage_id
+
+                # Handle parent-child relationships
+                for parent_id in valid_parents:
+                    if parent_id in self.nodes:
+                        parent_node = self.nodes[parent_id]
+                    else:
+                        parent_node = ClusterNode(parent_id, frame - 1)
+                        self.nodes[parent_id] = parent_node
+
+                    if curr_node not in parent_node.children:
+                        parent_node.children.append(curr_node)
+                    if parent_node not in curr_node.parents:
+                        curr_node.parents.append(parent_node)
+
+            # Update max_parents_count if necessary
+            self.max_parents_count = max(self.max_parents_count, len(curr_node.parents))
+
+    def get_cluster_history(self, cluster_id: int) -> List[List[Tuple[int, int]]]:
+        """Returns the history of a cluster as a list of paths, where each path is a list of (frame, cluster_id) tuples.
+
+        Arguments:
+            cluster_id (int): The cluster ID to get the history for.
+
+        Returns:
+            List[List[Tuple[int, int]]]: The history of the cluster as a list of paths.
+        """
+        if cluster_id not in self.nodes:
+            return []
+
+        start_node = self.nodes[cluster_id]
+        paths = []
+        visited = set()
+
+        def dfs(node, current_path):
+            if node in visited:
+                return
+            visited.add(node)
+
+            current_path.append(node)
+
+            if not node.parents:
+                paths.append(list(current_path))
+            else:
+                for parent in node.parents:
+                    dfs(parent, current_path)
+
+            current_path.pop()
+            visited.remove(node)
+
+        dfs(start_node, deque())
+
+        # Sort paths by frame number
+        for path in paths:
+            path.sort(key=lambda x: x.minframe)
+
+        return paths
+
+    def get_lineage_tree(self):
+        """Returns the lineage tree as a list of nodes and edges.
+
+        Returns:
+            Tuple[List[Tuple[int, int]], List[Tuple[int, int]]]: The lineage tree as a list of nodes and edges.
+        """
+        nodes = [(node.minframe, node.cluster_id) for node in self.nodes.values()]
+        edges = []
+        for node in self.nodes.values():
+            for child in node.children:
+                edges.append((node.cluster_id, child.cluster_id))
+
+        return nodes, edges
+
+    def _get_immediate_parents(self, cluster_ids):
+        """Returns the immediate parent IDs of the given cluster IDs.
+
+        Args:
+        cluster_ids (array-like): Array of cluster IDs to find parents for.
+
+        Returns:
+        list of tuples: Each tuple contains parent IDs for a cluster, padded with None if necessary.
+        """
+        parent_ids = []
+        for cluster_id in cluster_ids:
+            node = self.nodes.get(cluster_id)  # Get the ClusterNode associated with the cluster ID
+            if node:
+                # Collect all the parent IDs for the node
+                parents = [parent.cluster_id for parent in node.parents]
+                # Pad the list with None values if there are fewer parents than max_parents_count
+                parents += [None] * (self.max_parents_count - len(parents))
+            else:
+                # If the node doesn't exist, create a list of None values (no parents found)
+                parents = [None] * self.max_parents_count
+            parent_ids.append(tuple(parents))  # Append the result as a tuple
+
+        return parent_ids
+
+    def _add_parents_and_lineage_to_df(self, df, cluster_id_column):
+        """Adds new columns 'parent_1', 'parent_2', etc., and a 'lineage' column to the given DataFrame.
+
+        Args:
+        df (pd.DataFrame): Input DataFrame.
+        cluster_id_column (str): Name of the column containing cluster IDs.
+
+        Returns:
+        pd.DataFrame: DataFrame with the new parent columns and a lineage column added.
+        """
+        # Get the immediate parents for each cluster ID in the DataFrame
+        parent_ids = self._get_immediate_parents(df[cluster_id_column])
+
+        # Add parent columns
+        for i in range(self.max_parents_count):
+            column_name = f'parent_{i+1}'
+            df[column_name] = [parents[i] for parents in parent_ids]
+
+        # Add lineage column
+        df['lineage'] = df[cluster_id_column].apply(
+            lambda cid: self.nodes[cid].lineage_id if cid in self.nodes else None
+        )
+
+        return df
+
+    def copy(self):
+        """Returns a shallow copy of the LineageTracker."""
+        new_tracker = LineageTracker()
+        new_tracker.nodes = self.nodes.copy()
+        new_tracker.max_parents_count = self.max_parents_count
+        return new_tracker
+
+    def filter(self, criteria: str = None, min_value: int = None, max_value: int = None, ids: np.ndarray = None):
+        """Returns a new LineageTracker with nodes filtered by the given criteria.
+
+        Args:
+            criteria (str, optional): Filter criteria. One of:
+                - 'event_size': Number of frames an event spans
+                - 'lineage_size': Number of clusters in a lineage
+                - 'event_duration': Time duration of an event
+                - 'lineage_duration': Time duration of a lineage
+            min_value (int, optional): Minimum value for the criteria. If None, no lower bound.
+            max_value (int, optional): Maximum value for the criteria. If None, no upper bound.
+            ids (np.ndarray, optional): Explicit array of cluster IDs to keep
+
+        Returns:
+            LineageTracker: A new LineageTracker instance containing only the filtered nodes
+        """
+        filtered_ids = None
+
+        if ids is not None:
+            filtered_ids = set(ids)
+        elif criteria:
+            if criteria == 'event_size':
+                filtered_ids = self._get_size_filtered_ids(min_value, max_value)
+            elif criteria == 'lineage_size':
+                filtered_ids = self._get_lineage_size_filtered_ids(min_value, max_value)
+            elif criteria == 'event_duration':
+                filtered_ids = self._get_duration_filtered_ids(min_value, max_value)
+            elif criteria == 'lineage_duration':
+                filtered_ids = self._get_lineage_duration_filtered_ids(min_value, max_value)
+            else:
+                raise ValueError(
+                    f"Invalid filter criteria '{criteria}'. Choose from: "
+                    f"['event_size', 'lineage_size', 'event_duration', 'lineage_duration']"
+                )
+
+        if filtered_ids is None:
+            return self.copy()
+
+        # Create new tracker with filtered nodes and clean up relationships
+        new_tracker = LineageTracker()
+        new_tracker.nodes = {
+            node_id: self._create_clean_node_copy(self.nodes[node_id])
+            for node_id in filtered_ids
+            if node_id in self.nodes
+        }
+
+        # Update relationships between remaining nodes
+        self._update_node_relationships(new_tracker)
+
+        # Update max_parents_count for the new tracker
+        new_tracker.max_parents_count = max((len(node.parents) for node in new_tracker.nodes.values()), default=0)
+
+        return new_tracker
+
+    def _create_clean_node_copy(self, node: ClusterNode) -> ClusterNode:
+        """Creates a copy of a node with empty parent/child lists but preserved attributes."""
+        new_node = ClusterNode(node.cluster_id, node.minframe)
+        new_node.maxframe = node.maxframe
+        new_node.lineage_id = node.lineage_id
+        # Don't copy parents or children - these will be rebuilt
+        return new_node
+
+    def _update_node_relationships(self, new_tracker: 'LineageTracker'):
+        """Updates parent-child relationships between nodes in the new tracker.
+
+        Only maintains relationships where both parent and child exist in the filtered set.
+        """
+        for node_id, node in new_tracker.nodes.items():
+            original_node = self.nodes[node_id]
+
+            # Update parent relationships
+            for parent in original_node.parents:
+                if parent.cluster_id in new_tracker.nodes:
+                    new_parent = new_tracker.nodes[parent.cluster_id]
+                    if node not in new_parent.children:
+                        new_parent.children.append(node)
+                    if new_parent not in node.parents:
+                        node.parents.append(new_parent)
+
+            # Update child relationships
+            for child in original_node.children:
+                if child.cluster_id in new_tracker.nodes:
+                    new_child = new_tracker.nodes[child.cluster_id]
+                    if node not in new_child.parents:
+                        new_child.parents.append(node)
+                    if new_child not in node.children:
+                        node.children.append(new_child)
+
+    def _check_bounds(self, value: int, min_value: int = None, max_value: int = None) -> bool:
+        """Helper method to check if a value is within bounds."""
+        if min_value is not None and value < min_value:
+            return False
+        if max_value is not None and value > max_value:
+            return False
+        return True
+
+    def _get_size_filtered_ids(self, min_size: int = None, max_size: int = None):
+        """Returns set of node IDs filtered by event size."""
+        return {
+            node.cluster_id
+            for node in self.nodes.values()
+            if self._check_bounds(node.maxframe - node.minframe + 1, min_size, max_size)
+        }
+
+    def _get_duration_filtered_ids(self, min_duration: int = None, max_duration: int = None):
+        """Returns set of node IDs filtered by event duration."""
+        return {
+            node.cluster_id
+            for node in self.nodes.values()
+            if self._check_bounds(node.maxframe - node.minframe + 1, min_duration, max_duration)
+        }
+
+    def _get_lineage_metrics(self):
+        """Calculate metrics for each lineage.
+
+        Returns:
+            Tuple[Dict, Dict]: Maps of lineage_id to duration and size
+        """
+        lineage_min_frames = defaultdict(lambda: float('inf'))
+        lineage_max_frames = defaultdict(lambda: float('-inf'))
+        lineage_sizes = defaultdict(int)
+
+        # First pass: collect frame ranges and count events
+        for node in self.nodes.values():
+            lineage_id = node.lineage_id
+            lineage_min_frames[lineage_id] = min(lineage_min_frames[lineage_id], node.minframe)
+            lineage_max_frames[lineage_id] = max(lineage_max_frames[lineage_id], node.maxframe)
+            lineage_sizes[lineage_id] += 1
+
+        # Calculate durations
+        lineage_durations = {
+            lineage_id: max_frame - min_frame + 1
+            for lineage_id, max_frame in lineage_max_frames.items()
+            for min_frame in [lineage_min_frames[lineage_id]]
+        }
+
+        return lineage_durations, lineage_sizes
+
+    def _get_merge_split_stats(self):
+        """Calculate merge and split statistics for each lineage.
+
+        Returns:
+            Tuple[Dict, Dict]: Maps of lineage_id to merge and split counts
+        """
+        lineage_merges = defaultdict(int)
+        lineage_splits = defaultdict(int)
+
+        # Second pass: count merges and splits
+        for node in self.nodes.values():
+            lineage_id = node.lineage_id
+            if len(node.parents) > 1:
+                lineage_merges[lineage_id] += 1
+            if len(node.children) > 1:
+                lineage_splits[lineage_id] += 1
+
+        return lineage_merges, lineage_splits
+
+    def _get_lineage_size_filtered_ids(self, min_size: int = None, max_size: int = None):
+        """Returns set of node IDs filtered by lineage size.
+
+        A lineage's size is the total count of events with that lineage ID.
+        """
+        _, lineage_sizes = self._get_lineage_metrics()
+
+        return {
+            node.cluster_id
+            for node in self.nodes.values()
+            if self._check_bounds(lineage_sizes[node.lineage_id], min_size, max_size)
+        }
+
+    def _get_lineage_duration_filtered_ids(self, min_duration: int = None, max_duration: int = None):
+        """Returns set of node IDs filtered by lineage duration.
+
+        A lineage's duration is the span from the earliest to latest frame of any event
+        in that lineage.
+        """
+        lineage_durations, _ = self._get_lineage_metrics()
+
+        return {
+            node.cluster_id
+            for node in self.nodes.values()
+            if self._check_bounds(lineage_durations[node.lineage_id], min_duration, max_duration)
+        }
+
+    def reflect(self, data: Union[pd.DataFrame, np.ndarray], cluster_id_column: str = 'cluster_id'):
+        """Returns filtered version of input data based on nodes in this tracker.
+
+        Args:
+            data: Input DataFrame or array to filter
+            cluster_id_column: Column name containing cluster IDs (for DataFrames)
+
+        Returns:
+            Union[pd.DataFrame, np.ndarray]: Filtered data matching current tracker's nodes
+
+        Examples:
+            # Chain filters and reflect
+            filtered_df = (tracker
+                         .filter('event_size', min_value=5)
+                         .filter('lineage_size', max_value=8)
+                         .reflect(df))
+        """
+        valid_ids = set(self.nodes.keys())
+
+        if isinstance(data, pd.DataFrame):
+            data = data[data[cluster_id_column].isin(valid_ids)]
+            # remove any parents and lineage columns
+            data = data.drop(columns=[col for col in data.columns if 'parent' in col or col == 'lineage'])
+            # add parents and lineage columns
+            data = self._add_parents_and_lineage_to_df(data, cluster_id_column)
+            return data
+        else:  # numpy array
+            return np.where(np.isin(data, list(valid_ids)), data, 0)
+
+    def plot(self, **kwargs):
+        """Plots the lineage tree.
+
+        Arguments:
+            **kwargs: Arguments passed to LineagePlot constructor.
+                    See LineagePlot documentation for details.
+
+        Returns:
+            LineagePlot: The plot object for customization
+        """
+        plotter = LineagePlot(**kwargs)
+        plotter.draw_tree(self)
+        return plotter
+
+
+class Linker:
+    """Linker class to link clusters across frames and detect collective events.
+
+    Attributes:
+        event_ids (np.ndarray): The event IDs.
+        frame_counter (int): The current frame counter.
+        LineageTracker (LineageTracker): The LineageTracker object.
+
+    Methods:
+        link(input_coordinates): Links clusters across frames and detects collective events.
+        get_event_ids(): Returns the event IDs.
     """
 
     def __init__(
@@ -520,6 +991,11 @@ class Linker:
         reg: float = 1,
         reg_m: float = 10,
         n_jobs: int = 1,
+        allow_merges: bool = False,
+        allow_splits: bool = False,
+        stability_threshold: int = 10,
+        remove_small_clusters: bool = False,
+        min_size_for_split: int = 1,
         **kwargs,
     ):
         """Initializes the Linker object.
@@ -544,6 +1020,11 @@ class Linker:
             cost_threshold (int): Threshold for filtering low-probability matches (only for transportation linking).
             reg (float): Entropy regularization parameter for unbalanced OT algorithm (only for transportation linking).
             reg_m (float): Marginal relaxation parameter for unbalanced OT (only for transportation linking).
+            stability_threshold (int): Number of consecutive frames a merge/split must persist to be considered stable.
+            allow_merges (bool): Whether to allow merges.
+            allow_splits (bool): Whether to allow splits.
+            remove_small_clusters (bool): Whether to remove clusters smaller than min_clustersize.
+            min_size_for_split (int): The minimum size for a cluster to be considered for splitting. Multiple of min_clustersize.
             kwargs (Any): Additional keyword arguments. Includes deprecated parameters for backwards compatibility.
                 - epsPrev: Deprecated parameter for eps_prev. Use eps_prev instead.
                 - minClSz: Deprecated parameter for min_clustersize. Use min_clustersize instead.
@@ -602,7 +1083,6 @@ class Linker:
         self._validate_input(eps, eps_prev, min_clustersize, min_samples, clustering_method, n_prev, n_jobs)
 
         self.event_ids = np.empty((0, 0), dtype=np.int64)
-        self.max_prev_event_id = 0
 
         if hasattr(clustering_method, '__call__'):  # check if it's callable
             self.clustering_function = clustering_method
@@ -629,6 +1109,17 @@ class Linker:
                 raise ValueError(
                     f'Linking method must be either in {AVAILABLE_LINKING_METHODS} or a callable'  # noqa E501
                 )
+
+        self._stability_threshold = stability_threshold
+        self._allow_merges = allow_merges
+        self._allow_splits = allow_splits
+        self._merge_candidate_history: Dict[int, List[Tuple[List[int], int]]] = {}
+        self._split_candidate_history: Dict[int, List[Tuple[int, List[int]]]] = {}
+        self.lineage_tracker = LineageTracker()
+        self.frame_counter = -1  # Start at -1 to get the first frame to be 0
+        self._remove_small_clusters = remove_small_clusters
+        self._min_clustersize = min_clustersize
+        self._min_size_for_split = min_size_for_split
 
     def _validate_input(self, eps, eps_prev, min_clustersize, min_samples, clustering_method, n_prev, n_jobs):
         if not isinstance(eps, (int, float, str)):
@@ -685,34 +1176,65 @@ class Linker:
     def _update_tree(self, coords):
         self._nn_tree = KDTree(coords)
 
-    # @profile
+    def _get_next_id(self) -> int:
+        """Generate a new unique ID."""
+        self._memory.max_prev_cluster_id += 1
+        if self._memory.max_prev_cluster_id == 92:
+            pass
+        return self._memory.max_prev_cluster_id
+
+    def _apply_remove_small_clusters(self, linked_cluster_ids, original_cluster_ids):
+        # Remove small clusters if necessary
+        if self._remove_small_clusters:
+            unique_ids, counts = np.unique(linked_cluster_ids, return_counts=True)
+            for unique_id, count in zip(unique_ids, counts):
+                if count < self._min_clustersize:
+                    linked_cluster_ids[linked_cluster_ids == unique_id] = -1  # Mark as noise
+
+        # if subcluster contained in original cluster_ids is too small, mark as value from a directly connected cluster
+        for original_id in np.unique(original_cluster_ids):
+            mask = original_cluster_ids == original_id
+            unique_ids, counts = np.unique(linked_cluster_ids[mask], return_counts=True)
+            for unique_id, count in zip(unique_ids, counts):
+                if count < self._min_clustersize:
+                    linked_cluster_ids[mask & (linked_cluster_ids == unique_id)] = -1  # Mark as noise
+
+        return linked_cluster_ids
+
     def link(self, input_coordinates: np.ndarray) -> None:
-        """Links clusters from the previous frame to the current frame.
+        """Links clusters across frames and detects collective events.
 
         Arguments:
-            input_coordinates (np.ndarray): The coordinates of the current frame.
-
-        Returns:
-            None, modifies internal state with new linked clusters. New event ids are stored in self.event_ids.
+            input_coordinates (np.ndarray): The input coordinates.
         """
-        cluster_ids, coordinates, nanrows = self._clustering(input_coordinates)
-        # check if first frame
-        if not len(self._memory.prev_cluster_ids):
-            linked_cluster_ids = self._update_id_empty(cluster_ids)
-        # check if anything was detected in current or previous frame
-        elif cluster_ids.size == 0 or self._memory.all_cluster_ids.size == 0:
-            linked_cluster_ids = self._update_id_empty(cluster_ids)
-        else:
-            linked_cluster_ids = self._update_id(cluster_ids, coordinates)
+        self.frame_counter += 1
+        original_cluster_ids, coordinates, nanrows = self._clustering(input_coordinates)
 
-        # update memory with current frame and fit predictor if necessary
-        self._memory.add_timepoint(new_coordinates=coordinates, new_cluster_ids=linked_cluster_ids)
+        if not len(self._memory.prev_cluster_ids):
+            linked_cluster_ids = self._update_id_empty(original_cluster_ids)
+        elif original_cluster_ids.size == 0 or self._memory.all_cluster_ids.size == 0:
+            linked_cluster_ids = self._update_id_empty(original_cluster_ids)
+        else:
+            linked_cluster_ids = self._update_id(original_cluster_ids, coordinates)
+
+        if self._remove_small_clusters:
+            final_cluster_ids = self._apply_remove_small_clusters(linked_cluster_ids, original_cluster_ids)
+
+        # Apply stable merges and splits
+        final_cluster_ids = self._apply_stable_merges_splits(linked_cluster_ids, original_cluster_ids)
+
+        # Update lineage graph
+        self.lineage_tracker._add_frame(linked_cluster_ids, final_cluster_ids, self.frame_counter)
+
+        # Update memory and fit predictor
+        self._memory.add_frame(new_coordinates=coordinates, new_cluster_ids=final_cluster_ids)
         if self._predictor is not None and len(self._memory.coordinates) > 1:
             self._predictor.fit(coordinates=self._memory.coordinates, cluster_ids=self._memory.prev_cluster_ids)
         self._memory.remove_timepoint()
 
         event_ids = np.full_like(nanrows, -1, dtype=np.int64)
-        event_ids[~nanrows] = linked_cluster_ids
+        event_ids[~nanrows] = final_cluster_ids
+
         self.event_ids = event_ids
 
     # @profile
@@ -751,6 +1273,125 @@ class Linker:
         except ValueError:
             pass
         return linked_cluster_ids
+
+    def _identify_potential_merges_splits(self, linked_cluster_ids, original_cluster_ids):
+        # filter out noise and 0s
+        linked_unique = np.unique(linked_cluster_ids[linked_cluster_ids > 0])
+        original_unique = np.unique(original_cluster_ids[original_cluster_ids > 0])
+
+        potential_merges = {}
+        potential_splits = {}
+
+        if self._allow_splits:
+            for linked_id in np.sort(linked_unique):  # Sort linked_unique
+                linked_mask = linked_cluster_ids == linked_id
+                original_ids = np.unique(original_cluster_ids[linked_mask])
+
+                if len(original_ids) > 1:
+                    potential_splits[linked_id] = sorted(original_ids.tolist())  # Sort original_ids
+
+        if self._allow_merges:
+            for original_id in np.sort(original_unique):  # Sort original_unique
+                original_mask = original_cluster_ids == original_id
+                linked_ids = np.unique(linked_cluster_ids[original_mask])
+                # filter out noise and 0s
+                linked_ids = linked_ids[linked_ids > 0]
+
+                if len(linked_ids) > 1:
+                    potential_merges[original_id] = sorted(linked_ids.tolist())  # Sort linked_ids
+
+        return potential_merges, potential_splits
+
+    def _apply_stable_merges_splits(self, linked_cluster_ids, original_cluster_ids):
+        potential_merges, potential_splits = self._identify_potential_merges_splits(
+            linked_cluster_ids, original_cluster_ids
+        )
+
+        final_cluster_ids = linked_cluster_ids.copy()
+        split_merge_events = []
+        current_frame = self.frame_counter
+
+        # Process potential splits
+        for linked_id, original_ids in sorted(potential_splits.items()):
+            split_sizes = [
+                np.sum((linked_cluster_ids == linked_id) & (original_cluster_ids == orig_id))
+                for orig_id in original_ids
+            ]
+
+            if all(size >= self._min_clustersize * self._min_size_for_split for size in split_sizes):
+                split_key = linked_id
+                if split_key not in self._split_candidate_history:
+                    self._split_candidate_history[split_key] = []
+                self._split_candidate_history[split_key].append(current_frame)
+
+                # stability condition for splits
+                frames = self._split_candidate_history[split_key]
+                frames_in_window = [f for f in frames if current_frame - f < self._stability_threshold]
+                if len(frames_in_window) >= self._stability_threshold:
+                    split_merge_events.append(('split', split_key, original_ids))
+
+        # Process potential merges
+        for original_id, linked_ids in sorted(potential_merges.items()):
+            merge_key = tuple(sorted(linked_ids))
+            if merge_key not in self._merge_candidate_history:
+                self._merge_candidate_history[merge_key] = []
+            self._merge_candidate_history[merge_key].append(current_frame)
+
+            # stability condition for merges
+            frames = self._merge_candidate_history[merge_key]
+            frames_in_window = [f for f in frames if current_frame - f < self._stability_threshold]
+            if len(frames_in_window) >= self._stability_threshold:
+                split_merge_events.append(('merge', merge_key, linked_ids))
+
+        # Track which points have been modified to prevent double-modifications
+        modified_points = np.zeros_like(final_cluster_ids, dtype=bool)
+
+        # Track which IDs become invalid due to splits/merges
+        invalid_ids = set()
+
+        # Resolve and apply changes
+        for event_type, event_key, cluster_ids in sorted(split_merge_events):
+            if event_type == 'merge':
+                merge_mask = np.zeros_like(final_cluster_ids, dtype=bool)
+                for linked_id in cluster_ids:
+                    merge_mask |= final_cluster_ids == linked_id
+                    invalid_ids.add(linked_id)  # Add all merged IDs to invalid set
+
+                valid_merge_points = merge_mask & ~modified_points
+                if np.sum(valid_merge_points) >= self._min_clustersize:
+                    merge_id = self._get_next_id()
+                    final_cluster_ids[valid_merge_points] = merge_id
+                    modified_points[valid_merge_points] = True
+
+            elif event_type == 'split':
+                linked_id = event_key
+                invalid_ids.add(linked_id)  # Add split ID to invalid set
+
+                for original_id in cluster_ids:
+                    split_mask = (linked_cluster_ids == linked_id) & (original_cluster_ids == original_id)
+                    valid_split_points = split_mask & ~modified_points
+                    if np.sum(valid_split_points) >= self._min_clustersize:
+                        split_id = self._get_next_id()
+                        final_cluster_ids[valid_split_points] = split_id
+                        modified_points[valid_split_points] = True
+
+        # Remove all invalid IDs from memory
+        if invalid_ids:
+            self._memory.remove_invalid_ids(invalid_ids)
+
+        # Clean up history
+        self._merge_candidate_history = {
+            k: [f for f in v if current_frame - f < self._stability_threshold]
+            for k, v in self._merge_candidate_history.items()
+            if v
+        }
+        self._split_candidate_history = {
+            k: [f for f in v if current_frame - f < self._stability_threshold]
+            for k, v in self._split_candidate_history.items()
+            if v
+        }
+
+        return final_cluster_ids
 
 
 class BaseTracker(ABC):
@@ -931,6 +1572,11 @@ class DataFrameTracker(BaseTracker):
             return df_out
 
         df_out[self._collid_column] = self.linker.event_ids
+        if any([self.linker._allow_merges, self.linker._allow_splits]):
+            df_out = self.linker.lineage_tracker._add_parents_and_lineage_to_df(
+                df_out,
+                self._collid_column,
+            )
         return df_out
 
     def track(self, x: pd.DataFrame) -> Generator:
@@ -946,7 +1592,7 @@ class DataFrameTracker(BaseTracker):
             raise ValueError('Input is empty')
         x_sorted = self._sort_input(x, frame_column=self._frame_column, object_id_column=self._id_column)
 
-        for t in range(x_sorted[self._frame_column].max() + 1):
+        for t in range(x_sorted[self._frame_column].min(), x_sorted[self._frame_column].max() + 1):
             x_frame = x_sorted.query(f'{self._frame_column} == {t}')
             x_tracked = self.track_iteration(x_frame)
             yield x_tracked
@@ -1091,7 +1737,7 @@ def track_events_dataframe(
     X: pd.DataFrame,
     position_columns: List[str],
     frame_column: str,
-    id_column: str | None,
+    id_column: str | None = None,
     binarized_measurement_column: str | None = None,
     clid_column: str = "collid",
     eps: float = 1.0,
@@ -1100,6 +1746,14 @@ def track_events_dataframe(
     min_samples: int | None = None,
     clustering_method: str = "dbscan",
     linking_method: str = 'nearest',
+    allow_merges: bool = False,
+    allow_splits: bool = False,
+    stability_threshold: int = 10,
+    remove_small_clusters: bool = False,
+    min_size_for_split: int = 1,
+    reg: float = 1,
+    reg_m: float = 10,
+    cost_threshold: float = 0,
     n_prev: int = 1,
     predictor: bool | Callable = False,
     n_jobs: int = 1,
@@ -1124,6 +1778,14 @@ def track_events_dataframe(
             Only used if clusteringMethod is 'hdbscan'. If None, minSamples =  minClsz.
         clustering_method (str): The method used for clustering, one of [dbscan, hdbscan]. Default is "dbscan".
         linking_method (str): The method used for linking, one of ['nearest', 'transportsolver']. Default is 'nearest'.
+        allow_merges (bool): Whether or not to allow merges. Default is False.
+        allow_splits (bool): Whether or not to allow splits. Default is False.
+        stability_threshold (int): Number of frames to consider for stability. Default is 10.
+        remove_small_clusters (bool): Whether or not to remove small clusters. Default is False.
+        min_size_for_split (int): Minimum size for a split. Default is 1.
+        reg (float): Regularization parameter for transportation solver. Default is 1.
+        reg_m (float): Regularization parameter for transportation solver. Default is 10.
+        cost_threshold (float): Cost threshold for transportation solver. Default is 0.
         n_prev (int): Number of previous frames to consider. Default is 1.
         predictor (bool | Callable): Whether or not to use a predictor. Default is False.
             True uses the default predictor. A callable can be passed to use a custom predictor.
@@ -1184,7 +1846,16 @@ def track_events_dataframe(
         n_prev=n_prev,
         predictor=predictor,
         n_jobs=n_jobs,
+        allow_merges=allow_merges,
+        allow_splits=allow_splits,
+        stability_threshold=stability_threshold,
+        remove_small_clusters=remove_small_clusters,
+        min_size_for_split=min_size_for_split,
+        reg=reg,
+        reg_m=reg_m,
+        cost_threshold=cost_threshold,
     )
+
     tracker = DataFrameTracker(
         linker=linker,
         position_columns=position_columns,
@@ -1196,6 +1867,9 @@ def track_events_dataframe(
     df_out = pd.concat(
         [timepoint for timepoint in tqdm(tracker.track(X), total=X[frame_column].nunique(), disable=not show_progress)]
     ).reset_index(drop=True)
+
+    if any([allow_merges, allow_splits]):
+        return df_out.query(f"{clid_column} != -1").reset_index(drop=True), linker.lineage_tracker
     return df_out.query(f"{clid_column} != -1").reset_index(drop=True)
 
 
@@ -1209,6 +1883,11 @@ def track_events_image(
     n_prev: int = 1,
     predictor: bool | Callable = False,
     linking_method: str = 'nearest',
+    allow_merges: bool = False,
+    allow_splits: bool = False,
+    stability_threshold: int = 10,
+    remove_small_clusters: bool = False,
+    min_size_for_split: int = 1,
     reg: float = 1,
     reg_m: float = 10,
     cost_threshold: float = 0,
@@ -1217,7 +1896,7 @@ def track_events_image(
     n_jobs: int = 1,
     show_progress: bool = True,
     **kwargs,
-) -> np.ndarray:
+) -> np.ndarray | tuple[np.ndarray, LineageTracker]:
     """Function to track events in an image using specified linking and clustering methods.
 
     Arguments:
@@ -1234,6 +1913,11 @@ def track_events_image(
             True uses the default predictor. A callable can be passed to use a custom predictor.
             See default predictor method for details.
         linking_method (str): The method used for linking. Default is 'nearest'.
+        allow_merges (bool): Whether or not to allow merges. Default is False.
+        allow_splits (bool): Whether or not to allow splits. Default is False.
+        stability_threshold (int): The number of frames required for a stable merge or split. Default is 10.
+        remove_small_clusters (bool): Whether or not to remove small clusters. Default is False.
+        min_size_for_split (int): Minimum size for a split. Default is 1.
         reg (float): Entropy regularization parameter for unbalanced OT algorithm (only for transportation linking).
         reg_m (float): Marginal relaxation parameter for unbalanced OT (only for transportation linking).
         cost_threshold (float): Threshold for filtering low-probability matches (only for transportation linking).
@@ -1304,14 +1988,24 @@ def track_events_image(
         reg_m=reg_m,
         cost_threshold=cost_threshold,
         n_jobs=n_jobs,
+        allow_merges=allow_merges,
+        allow_splits=allow_splits,
+        stability_threshold=stability_threshold,
+        remove_small_clusters=remove_small_clusters,
+        min_size_for_split=min_size_for_split,
     )
     tracker = ImageTracker(linker, downsample=downsample)
     # find indices of T in dims
     T_index = dims.upper().index("T")
-    return np.stack(
-        [timepoint for timepoint in tqdm(tracker.track(X, dims), total=X.shape[T_index], disable=not show_progress)],
-        axis=T_index,
-    )
+    out = np.zeros_like(X, dtype=np.uint16)
+
+    for i in tqdm(range(X.shape[T_index]), disable=not show_progress):
+        out[i] = tracker.track_iteration(X[i])
+
+    if any([allow_merges, allow_splits]):
+        return out, linker.lineage_tracker
+
+    return out
 
 
 class detectCollev:

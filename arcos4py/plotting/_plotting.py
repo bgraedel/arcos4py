@@ -26,14 +26,23 @@ Examples:
 
 from __future__ import annotations
 
-from typing import Any, Union
+import colorsys
+import logging
+from collections import defaultdict
+from typing import Any, Dict, List, Set, Tuple, Union
 
+import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from matplotlib.path import Path
+from scipy.cluster.hierarchy import dendrogram, linkage
+from scipy.spatial.distance import squareform
 
 from ..tools._arcos4py_deprecation import handle_deprecated_params
+
+logging.basicConfig(level=logging.INFO)
 
 TAB20 = [
     "#1f77b4",
@@ -623,3 +632,417 @@ class NoodlePlot:
             )
         fig, axes = self._create_noodle_plot(grpd_data, colors)
         return fig, axes
+
+
+class LineagePlot:
+    """Class to draw a lineage tree of clusters over time.
+
+    Attributes:
+        figsize (tuple): Size of the figure.
+        node_size (int): Size of the nodes.
+        edge_width (int): Width of the edges.
+        edge_alpha (float): Alpha value of the edges.
+        color_seed (int): Seed for the color generation.
+        title (str): Title of the plot.
+        xlabel (str): Label of the x-axis.
+        ylabel (str): Label of the y-axis.
+        font_size (int): Font size of the labels.
+        curve_factor (float): Factor to curve the edges.
+        orphan_color (tuple): Color of the orphan nodes.
+        color_by (str): Attribute to color the plot by ('lineage_id' or 'cluster_id').
+        show_node_labels (bool): If True, display node labels on the plot.
+        main_lineage_id (int): The lineage ID of the main lineage to be plotted on the same row.
+    """
+
+    def __init__(
+        self,
+        figsize=(18, 18),
+        node_size=50,
+        edge_width=2,
+        edge_alpha=0.8,
+        color_seed=42,
+        title="Cluster Lineage Tree",
+        xlabel="Frame",
+        ylabel="Lineage",
+        font_size=16,
+        curve_factor=0.9,
+        orphan_color=(0.7, 0.7, 0.7, 1.0),
+        color_by='lineage_id',  # 'lineage_id' or 'cluster_id'
+        show_node_labels=False,  # Whether to display node labels
+        main_lineage_id=None,  # The main lineage to keep on the same row
+    ):
+        """Constructs class with given parameters."""
+        self.fig, self.ax = plt.subplots(figsize=figsize)
+        self.node_size = node_size
+        self.edge_width = edge_width
+        self.edge_alpha = edge_alpha
+        self.title = title
+        self.xlabel = xlabel
+        self.ylabel = ylabel
+        self.font_size = font_size
+        self.curve_factor = curve_factor
+        self.orphan_color = orphan_color
+        self.color_seed = color_seed
+        self.color_by = color_by
+        self.show_node_labels = show_node_labels
+        self.main_lineage_id = main_lineage_id  # Store the main lineage ID
+
+        self.colors: Dict[int, Tuple[float, float, float, float]] = {}
+        self.node_positions: Dict[Tuple[int, int], Tuple[float, float]] = {}
+        self.lineage_edges: List[Tuple[Tuple[int, int], Tuple[int, int]]] = []
+        self.node_color: Dict[Tuple[int, int], Tuple[float, float, float, float]] = {}
+        self.child_to_parent: Dict[Tuple[int, int], Set[Tuple[int, int]]] = {}
+        self.parent_to_child: Dict[Tuple[int, int], Set[Tuple[int, int]]] = {}
+        self.lineage_order: List[int] = []
+        self.all_nodes: Set[Tuple[int, int]] = set()
+        self.frame_to_nodes: Dict[int, List[Tuple[int, int]]] = defaultdict(list)
+        self.node_to_lineage_id: Dict[Tuple[int, int], int] = {}
+        self.node_to_cluster_id: Dict[Tuple[int, int], int] = {}
+        self.node_to_plot_lineage_id: Dict[Tuple[int, int], int] = {}
+        self.plot_lineage_id_to_lineage_id: Dict[int, int] = {}  # New mapping
+
+    def _process_data(self, tracker):
+        """Processes the lineage tracker data to prepare for plotting."""
+        # Initialize data structures
+        self.all_nodes = set()
+        self.frame_to_nodes = defaultdict(list)
+        self.parent_to_child = defaultdict(set)
+        self.child_to_parent = defaultdict(set)
+        self.lineage_edges = []
+        self.minframe_nodes = set()
+        self.node_to_lineage_id = {}
+        self.node_to_cluster_id = {}
+
+        # Expand nodes and edges based on parent-child relationships over time
+        for node in tracker.nodes.values():
+            lineage_id = node.lineage_id
+
+            # Directly connect minframe to maxframe
+            source = (node.minframe, node.cluster_id)
+            target = (node.maxframe, node.cluster_id)
+            self.lineage_edges.append((source, target))
+            self.all_nodes.add(source)
+            self.all_nodes.add(target)
+            self.parent_to_child[source].add(target)
+            self.child_to_parent[target].add(source)
+
+            # Track node persistence
+            self.all_nodes.add(source)
+            self.all_nodes.add(target)
+            self.frame_to_nodes[source[0]].append(source)
+            self.frame_to_nodes[target[0]].append(target)
+            self.node_to_lineage_id[source] = lineage_id
+            self.node_to_cluster_id[source] = node.cluster_id
+            self.node_to_lineage_id[target] = lineage_id
+            self.node_to_cluster_id[target] = node.cluster_id
+
+            # Add to minframe_nodes if it's the first frame
+            self.minframe_nodes.add(source)
+
+            # Add edges between parent and child clusters
+            child_start_frame = node.minframe
+            child_node = (child_start_frame, node.cluster_id)
+            for parent in node.parents:
+                parent_end_frame = parent.maxframe
+                parent_node = (parent_end_frame, parent.cluster_id)
+                self.lineage_edges.append((parent_node, child_node))
+                self.parent_to_child[parent_node].add(child_node)
+                self.child_to_parent[child_node].add(parent_node)
+
+        # Generate plotting lineage IDs
+        self._generate_plot_lineage_ids()
+
+        # Assign colors based on the selected attribute
+        self._assign_colors(tracker)
+        # Order lineages including both merging and splitting events
+        self._order_lineages_by_merging_and_splitting_events(tracker)
+
+        # Position nodes based on plotting lineage order
+        plot_lineage_id_to_y = {lineage_id: idx for idx, lineage_id in enumerate(self.lineage_order)}
+        max_idx = len(plot_lineage_id_to_y) - 1 if len(plot_lineage_id_to_y) > 0 else 1
+        self.node_positions = {}
+        for node_tuple in self.all_nodes:
+            frame, cluster_id = node_tuple
+            x = frame
+            plot_lineage_id = self.node_to_plot_lineage_id.get(node_tuple, None)
+            if plot_lineage_id is not None:
+                y = plot_lineage_id_to_y[plot_lineage_id] / max_idx if max_idx > 0 else 0.5
+            else:
+                y = 0.5  # Assign a default position for nodes without a lineage
+            self.node_positions[node_tuple] = (x, y)
+
+    def _generate_plot_lineage_ids(self):
+        """Assigns plotting lineage IDs to all nodes, ensuring continuity."""
+        self.node_to_plot_lineage_id = {}
+        self.plot_lineage_id_to_lineage_id = {}
+        plot_lineage_counter = 0
+
+        # Get all unique lineage IDs, prioritizing the main lineage
+        lineage_ids = set(self.node_to_lineage_id.values())
+        if self.main_lineage_id is not None and self.main_lineage_id in lineage_ids:
+            lineage_ids = [self.main_lineage_id] + [lid for lid in lineage_ids if lid != self.main_lineage_id]
+        else:
+            lineage_ids = list(lineage_ids)
+
+        for lineage_id in lineage_ids:
+            # Get all nodes for this lineage_id
+            lineage_nodes = {node for node, lid in self.node_to_lineage_id.items() if lid == lineage_id}
+
+            # Get root nodes (nodes without parents in this lineage)
+            root_nodes = {
+                node
+                for node in lineage_nodes
+                if not any(parent in lineage_nodes for parent in self.child_to_parent.get(node, []))
+            }
+
+            for root_node in root_nodes:
+                stack = [(root_node, plot_lineage_counter)]
+                self.plot_lineage_id_to_lineage_id[plot_lineage_counter] = lineage_id
+                plot_lineage_counter += 1
+
+                while stack:
+                    current_node, current_plot_lineage_id = stack.pop()
+                    if current_node in self.node_to_plot_lineage_id:
+                        continue
+                    self.node_to_plot_lineage_id[current_node] = current_plot_lineage_id
+
+                    # Get children in the same lineage
+                    children = [
+                        child
+                        for child in self.parent_to_child.get(current_node, [])
+                        if self.node_to_lineage_id.get(child) == lineage_id
+                    ]
+
+                    if len(children) > 1:
+                        # Node splits, assign new plot_lineage_ids to each branch
+                        for child in children:
+                            stack.append((child, plot_lineage_counter))
+                            self.plot_lineage_id_to_lineage_id[plot_lineage_counter] = lineage_id
+                            plot_lineage_counter += 1
+                    else:
+                        for child in children:
+                            stack.append((child, current_plot_lineage_id))
+
+        # For nodes not assigned plot_lineage_ids (could be orphans), assign new plot_lineage_ids
+        for node in self.all_nodes:
+            if node not in self.node_to_plot_lineage_id:
+                lineage_id = self.node_to_lineage_id.get(node, None)
+                if lineage_id is None:
+                    continue
+                self.node_to_plot_lineage_id[node] = plot_lineage_counter
+                self.plot_lineage_id_to_lineage_id[plot_lineage_counter] = lineage_id
+                plot_lineage_counter += 1
+
+    def _assign_colors(self, tracker):
+        """Assigns colors to nodes based on the selected attribute."""
+        if self.color_by == 'lineage_id':
+            # Assign colors based on true lineage IDs
+            unique_ids = {node.lineage_id for node in tracker.nodes.values()}
+            id_to_color_attr = self.node_to_lineage_id
+        elif self.color_by == 'cluster_id':
+            # Collect unique cluster IDs
+            unique_ids = set(self.node_to_cluster_id.values())
+            id_to_color_attr = self.node_to_cluster_id
+        else:
+            raise ValueError(f"Invalid color_by value: {self.color_by}. Use 'lineage_id' or 'cluster_id'.")
+
+        # Generate colors
+        colors = self._generate_colors(len(unique_ids))
+        color_map = dict(zip(unique_ids, colors))
+
+        # Assign colors to nodes
+        for node_tuple in self.all_nodes:
+            node_id = id_to_color_attr.get(node_tuple)
+            if node_id is None:
+                color = self.orphan_color
+            else:
+                color = color_map.get(node_id, self.orphan_color)
+            self.node_color[node_tuple] = color
+
+    def _order_lineages_by_merging_and_splitting_events(self, tracker):
+        """Orders the lineages to minimize overlap and crossings using hierarchical clustering."""
+        # Build a lineage graph that includes both merging and splitting events
+        lineage_graph = defaultdict(set)  # plot_lineage_id -> set of connected plot_lineage_ids
+
+        # Map from node tuples to nodes for easy access
+        for node_tuple in self.all_nodes:
+            plot_lineage_id = self.node_to_plot_lineage_id.get(node_tuple)
+            if plot_lineage_id is None:
+                continue
+
+            # Merging and splitting events
+            connected_nodes = self.parent_to_child.get(node_tuple, set()) | self.child_to_parent.get(node_tuple, set())
+            for connected_node in connected_nodes:
+                connected_plot_lineage_id = self.node_to_plot_lineage_id.get(connected_node)
+                if connected_plot_lineage_id is not None and connected_plot_lineage_id != plot_lineage_id:
+                    lineage_graph[plot_lineage_id].add(connected_plot_lineage_id)
+                    lineage_graph[connected_plot_lineage_id].add(plot_lineage_id)
+
+        # Attempt to group plotting lineages of the same true lineage
+        # by adding edges between them in the lineage graph
+        for plot_lineage_id_i in self.plot_lineage_id_to_lineage_id:
+            lineage_id_i = self.plot_lineage_id_to_lineage_id[plot_lineage_id_i]
+            for plot_lineage_id_j in self.plot_lineage_id_to_lineage_id:
+                if plot_lineage_id_i >= plot_lineage_id_j:
+                    continue
+                lineage_id_j = self.plot_lineage_id_to_lineage_id[plot_lineage_id_j]
+                if lineage_id_i == lineage_id_j:
+                    # Add a strong connection between plotting lineages of the same true lineage
+                    lineage_graph[plot_lineage_id_i].add(plot_lineage_id_j)
+                    lineage_graph[plot_lineage_id_j].add(plot_lineage_id_i)
+
+        # Collect all plotting lineage IDs
+        lineage_ids = sorted(set(self.node_to_plot_lineage_id.values()))
+        lineage_id_to_index = {lid: idx for idx, lid in enumerate(lineage_ids)}
+        n_lineages = len(lineage_ids)
+
+        # Initialize adjacency matrix
+        adjacency_matrix = np.zeros((n_lineages, n_lineages))
+
+        # Set adjacency between connected lineages
+        for lineage_id, neighbors in lineage_graph.items():
+            i = lineage_id_to_index[lineage_id]
+            for neighbor in neighbors:
+                j = lineage_id_to_index[neighbor]
+                adjacency_matrix[i, j] = 1
+                adjacency_matrix[j, i] = 1  # Ensure symmetry
+
+        # Set diagonal elements to 1 (lineages are connected to themselves)
+        np.fill_diagonal(adjacency_matrix, 1)
+
+        # Compute distance matrix (convert adjacency to distances)
+        # Lineages that are connected have distance 0, others have distance 1
+        distance_matrix = 1 - adjacency_matrix
+
+        # Ensure the distance matrix has zeros on the diagonal
+        np.fill_diagonal(distance_matrix, 0)
+
+        # Use hierarchical clustering with the distance matrix
+        if n_lineages > 1:
+            # Convert to condensed distance matrix for linkage
+            condensed_distance = squareform(distance_matrix)
+            Z = linkage(condensed_distance, method='median')
+            dendro = dendrogram(Z, no_plot=True)
+            order = dendro['leaves']
+            lineage_order = [lineage_ids[i] for i in order]
+        else:
+            lineage_order = lineage_ids
+
+        # Move plot_lineage_ids corresponding to main_lineage_id to the beginning
+        if self.main_lineage_id is not None:
+            main_lineage_plot_ids = [
+                pid for pid, lid in self.plot_lineage_id_to_lineage_id.items() if lid == self.main_lineage_id
+            ]
+            lineage_order = [pid for pid in lineage_order if pid not in main_lineage_plot_ids]
+            lineage_order = main_lineage_plot_ids + lineage_order
+
+        # Second pass: Adjust the lineage_order to minimize vertical distances of merging events
+        lineage_order = self._adjust_lineage_order(lineage_order, lineage_graph)
+
+        self.lineage_order = lineage_order
+
+    def _adjust_lineage_order(self, lineage_order, lineage_graph, max_iterations=10):
+        """Iteratively adjusts the lineage order to minimize crossings."""
+        # Initialize positions
+        positions = {lineage_id: index for index, lineage_id in enumerate(lineage_order)}
+
+        # If main_lineage_id is specified, get its plotting_lineage_ids and fix their positions
+        fixed_positions = {}
+        if self.main_lineage_id is not None:
+            main_lineage_plot_ids = [
+                pid for pid, lid in self.plot_lineage_id_to_lineage_id.items() if lid == self.main_lineage_id
+            ]
+            for idx, pid in enumerate(main_lineage_plot_ids):
+                positions[pid] = idx  # Move them to the beginning
+                fixed_positions[pid] = positions[pid]
+
+        # Perform iterative position adjustments
+        for _ in range(max_iterations):
+            new_positions = positions.copy()
+
+            for lineage_id in positions:
+                if lineage_id in fixed_positions:
+                    continue  # Skip fixed positions
+                connected_lineages = lineage_graph[lineage_id]
+                if not connected_lineages:
+                    continue
+
+                avg_position = sum(positions[neighbor] for neighbor in connected_lineages) / len(connected_lineages)
+                new_positions[lineage_id] = (positions[lineage_id] + avg_position) / 2
+
+            # After updating positions, sort the lineages
+            sorted_lineages = sorted(new_positions.items(), key=lambda x: x[1])
+
+            # Re-assign positions to be 0,1,2,...
+            positions = {lineage_id: index for index, (lineage_id, _) in enumerate(sorted_lineages)}
+
+            # Update fixed_positions
+            for pid in fixed_positions:
+                positions[pid] = fixed_positions[pid]
+
+        # Return the final ordering
+        lineage_order = [lineage_id for lineage_id, _ in sorted(positions.items(), key=lambda x: x[1])]
+        return lineage_order
+
+    def _generate_colors(self, n: int) -> List[Tuple[float, float, float, float]]:
+        """Generates a list of distinct colors."""
+        colors = []
+        rng = np.random.default_rng(self.color_seed)
+        for i in range(n):
+            hue = rng.random()
+            rgb = colorsys.hsv_to_rgb(hue, 0.8, 0.8)
+            colors.append((*rgb, 1.0))
+        return colors
+
+    def _draw_curved_edge(self, start, end, color):
+        """Draw a curved edge between two points, with the specified color."""
+        mid_x = (start[0] + end[0]) / 2
+        mid_y1 = start[1] + (end[1] - start[1]) * self.curve_factor
+        mid_y2 = end[1] - (end[1] - start[1]) * self.curve_factor
+        path = Path(
+            [start, (mid_x, mid_y1), (mid_x, mid_y2), end], [Path.MOVETO, Path.CURVE4, Path.CURVE4, Path.CURVE4]
+        )
+        patch = patches.PathPatch(
+            path, facecolor="none", edgecolor=color, alpha=self.edge_alpha, linewidth=self.edge_width
+        )
+        self.ax.add_patch(patch)
+
+    def draw_tree(self, tracker):
+        """Draw the lineage tree based on the processed data."""
+        self._process_data(tracker)
+
+        # Draw edges with assigned coloring
+        for source, target in self.lineage_edges:
+            source_pos = self.node_positions[source]
+            target_pos = self.node_positions[target]
+            color = self.node_color.get(source, self.orphan_color)
+            self._draw_curved_edge(source_pos, target_pos, color)
+
+        # Draw nodes
+        for node in self.minframe_nodes:
+            pos = self.node_positions[node]
+            color = self.node_color.get(node, self.orphan_color)
+            self.ax.scatter(pos[0], pos[1], s=self.node_size, c=[color], zorder=2)
+            if self.show_node_labels:
+                label = f"{node[1]}"  # Use cluster_id as label
+                self.ax.text(pos[0], pos[1], label, fontsize=self.font_size - 4, ha='right', va='bottom')
+
+        # Set labels and title
+        self.ax.set_title(self.title, fontsize=self.font_size)
+        self.ax.set_xlabel(self.xlabel, fontsize=self.font_size - 2)
+        self.ax.set_ylabel(self.ylabel, fontsize=self.font_size - 2)
+
+        # Set y-ticks to plotting lineage IDs with true lineage IDs as labels
+        lineage_ids = self.lineage_order
+        plot_lineage_id_to_y = {lineage_id: idx for idx, lineage_id in enumerate(lineage_ids)}
+        max_idx = len(lineage_ids) - 1 if len(lineage_ids) > 0 else 1
+        y_ticks = [plot_lineage_id_to_y[lineage_id] / max_idx if max_idx > 0 else 0.5 for lineage_id in lineage_ids]
+        # Get corresponding true lineage IDs for labels
+        y_tick_labels = [self.plot_lineage_id_to_lineage_id[lineage_id] for lineage_id in lineage_ids]
+        self.ax.set_yticks(y_ticks)
+        self.ax.set_yticklabels(y_tick_labels, fontsize=self.font_size - 4)
+        plt.tight_layout()
+
+    def show(self):
+        """Display the plot."""
+        plt.show()
