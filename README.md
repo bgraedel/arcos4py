@@ -19,18 +19,20 @@ Arcos4py is a python package to detect collective Spatio-temporal phenomena.
 
 ## Features
 
-Automated Recognition of Collective Signalling for python (arcos4py) aims to identify collective spatial events in time-series data.
+Automated Recognition of Collective Signalling for python (arcos4py) aims to identify collective spatial events in time-series data or microscopy images
 The software identifies collective protein activation in 2- and 3D cell cultures and can track events over time. Such collective waves have been recently identified in various biological systems and have been demonstrated to play a crucial role in the maintenance of epithelial homeostasis (Gagliardi et al., 2020, Takeuchi et al., 2020, Aikin et al., 2020),
-in the acinar morphogenesis (Ender et al., 2020), osteoblast regeneration (De Simone et al., 2021), and the coordination of collective cell migration (Aoki et al., 2017, Hino et al., 2020). Arcos4py is the python equivalent of the R package ARCOS (https://github.com/dmattek/ARCOS).
+in the acinar morphogenesis (Ender et al., 2020), osteoblast regeneration (De Simone et al., 2021), and the coordination of collective cell migration (Aoki et al., 2017, Hino et al., 2020). The R package ARCOS (https://github.com/dmattek/ARCOS) has partially equivalent implemntation of arcos4py in R. Arcos4py includes more recent upgrades and additional features, including tracking of events in images directly, split/merge detection, motion prediction to aid tracking.
 
 Despite its focus on cell signaling, the framework can also be applied to other spatiotemporally correlated phenomena.
 
 Data Format
 -----------
-The time series should be arranged in a long table format where each row defines the object's location, time, and optionally the measurement value.
+If the data is a t timeseries it should be arranged in a long table format where each row defines the object's location, time, and optionally the measurement value.
 
 ARCOS defines an ARCOS object on which several class methods can be used to prepare the data and calculate collective events.
 Optionally the objects used in the ARCOS class can be used individually by importing them from arcos.tools
+
+If the source data are images, they need to be binarised and can be processed directly with track_events_images from arcos4py.tools
 
 Installation
 ------------
