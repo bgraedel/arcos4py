@@ -30,6 +30,13 @@ from tqdm import tqdm
 
 from ..plotting._plotting import LineagePlot
 from ..tools._arcos4py_deprecation import handle_deprecated_params
+from ..tools._predictor import Predictor
+
+Array = np.ndarray
+PredVector = Array  # shape (d,)
+PredRigid = Dict[str, Array]  # keys {"R", "t"}
+PredCoords = Dict[str, Array]  # key  {"coords"}
+Prediction = Union[PredVector, PredRigid, PredCoords]
 
 AVAILABLE_CLUSTERING_METHODS = ['dbscan', 'hdbscan']
 AVAILABLE_LINKING_METHODS = ['nearest', 'transportation']
@@ -372,143 +379,6 @@ class Memory:
         if len(self.prev_cluster_ids) > 1:
             return np.concatenate(self.prev_cluster_ids)
         return self.prev_cluster_ids[0]
-
-
-class Predictor:
-    """Predictor class for predicting future coordinates based on given coordinates and cluster IDs.
-
-    Attributes:
-        predictor (Callable): A callable object representing the prediction logic,
-            by default the default_predictor is used.
-            which predicts coordinates based on centroid displacement.
-        prediction_map (Dict[int, float]): A dictionary that maps cluster_ids to coordinates,
-            representing coordinate predictions.
-
-    Methods:
-        with_default_predictor(): Class method that returns an instance of the Predictor class
-            with the default predictor.
-        default_predictor(coordinates, cluster_ids): Static method that contains the default prediction logic.
-            Predicts coordinates based on centroid displacement.
-        predict(coordinates, cluster_ids): Predicts the coordinates for given clusters.
-            Requires that the predictor has been fitted.
-        fit(coordinates, cluster_ids): Fits the predictor using the given coordinates and cluster IDs.
-    """
-
-    def __init__(self, predictor: Callable):
-        """Initializes the Predictor class. Defaults to the default_predictor.
-
-        Arguments:
-            predictor (Callable): A callable object representing the prediction logic,
-                by default the default_predictor is used. See default_predictor for more information.
-                Predictor function should take a dictionary that maps cluster_ids to coordinates, and
-                return a dictionary that maps cluster_ids to coordinates, representing coordinate predictions.
-        """
-        self.predictor = predictor if predictor is not None else self.default_predictor
-        self.prediction_map: Dict[int, float] = defaultdict()
-        self._fitted = False
-
-    @classmethod
-    def with_default_predictor(cls):
-        """Class method that returns an instance of the Predictor class with the default predictor."""
-        return cls(cls.default_predictor)
-
-    @staticmethod
-    def default_predictor(cluster_map: Dict[float, Dict[int, Tuple[np.ndarray, Tuple[np.ndarray]]]]):
-        """Static method that contains the default prediction logic.
-
-        Predicts coordinates based on centroid displacement for each cluster.
-
-        Arguments:
-            cluster_map (Dict[float, Dict[int, Tuple[np.ndarray, Tuple[np.ndarray]]]]):
-                A dictionary that maps cluster_ids to coordinates.
-        """
-        prediction_map: Dict[float, np.ndarray] = defaultdict()
-
-        def _get_centroid(coords: np.ndarray) -> np.ndarray:
-            if coords.shape[0] < 2:
-                return coords
-            return np.mean(coords, keepdims=True, axis=0)
-
-        def _get_velocity(centroids: List[np.ndarray]) -> np.ndarray:
-            if len(centroids) < 2:
-                return np.zeros_like(centroids)
-            return np.mean(np.diff(centroids, axis=0), axis=0)
-
-        for cluster in cluster_map:
-            centroids = [_get_centroid(coords) for coords, _ in cluster_map[cluster].values()]
-            velocity = _get_velocity(centroids)
-            prediction_map[cluster] = velocity
-
-        return prediction_map
-
-    def _create_cluster_map(
-        self, coordinates: List[np.ndarray], cluster_ids: List[np.ndarray]
-    ) -> Dict[int, Dict[int, Tuple[np.ndarray, np.ndarray]]]:
-
-        result: Dict[int, Dict[int, Tuple[np.ndarray, np.ndarray]]] = defaultdict(dict)
-
-        for timepoint, (coords, ids) in enumerate(zip(coordinates, cluster_ids), start=-len(coordinates) + 1):
-            unique_ids = np.unique(ids)
-            if unique_ids.size == 0:
-                result[-1][timepoint] = (np.empty((0, 2)), np.empty((0,)))
-            for unique_id in unique_ids:
-                id_indices = np.where(ids == unique_id)[0]
-                result[unique_id][timepoint] = (coords[id_indices], id_indices)
-        return result
-
-    def predict(self, coordinates: List[np.ndarray], cluster_ids: List[np.ndarray], copy=True):
-        """Predicts the coordinates for given clusters. Requires that the predictor has been fitted.
-
-        Arguments:
-            coordinates (List[np.ndarray]): A list of coordinates for each time point to predict.
-            cluster_ids (List[np.ndarray]): A list of cluster IDs for each time point to predict.
-            copy (bool): Whether to copy the coordinates before modifying them in place.
-
-        Returns:
-            List[np.ndarray]: A list of predicted coordinates for each time point.
-        """
-        assert len(coordinates) == len(cluster_ids), "The number of coordinates and cluster IDs must be the same"
-
-        if not self._fitted:
-            warnings.warn("Predictor has not been fitted yet")
-            return coordinates
-
-        if copy:
-            coordinates = [coords.copy() for coords in coordinates]
-
-        for coords, ids in zip(coordinates, cluster_ids):
-            self._predict_frame(coords, ids)
-
-        return coordinates
-
-    def _predict_frame(self, coordinates: np.ndarray, cluster_ids: np.ndarray):
-        # modify coordinates in place
-        unique_ids = np.unique(cluster_ids)
-        for unique_id in unique_ids:
-            if unique_id not in self.prediction_map:
-                continue
-            id_indices = np.where(cluster_ids == unique_id)
-            coordinates[id_indices] = np.add(coordinates[id_indices], self.prediction_map[unique_id])
-
-    def fit(self, coordinates: List[np.ndarray], cluster_ids: List[np.ndarray]):
-        """Fit the predictor to the given coordinates and cluster ID pairs.
-
-        Has to be called before predict can be called.
-
-        Arguments:
-            coordinates (List[np.ndarray]): List of coordinates for each timepoint.
-            cluster_ids (List[np.ndarray]): List of cluster IDs for each timepoint.
-        """
-        assert len(coordinates) == len(cluster_ids), "The number of coordinates and cluster IDs must be the same"
-
-        if len(coordinates) < 2:
-            raise ValueError("There must be at least 2 timepoints to fit the predictor")
-
-        cluster_map = self._create_cluster_map(coordinates, cluster_ids)
-
-        if self.predictor is not None:
-            self.prediction_map = self.predictor(cluster_map)
-            self._fitted = True
 
 
 @dataclass
@@ -1065,7 +935,7 @@ class Linker:
         if callable(predictor):
             self._predictor = Predictor(predictor)
         elif predictor:
-            self._predictor = Predictor.with_default_predictor()
+            self._predictor = Predictor()
         else:
             self._predictor = None
 
