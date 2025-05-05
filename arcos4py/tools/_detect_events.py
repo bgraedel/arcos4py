@@ -2418,11 +2418,11 @@ def estimate_eps(  # noqa: C901
     print(f"Estimating eps using '{method}' method...")
     if method == "kneepoint":
         kneedle_kwargs = {
-            'S': kwargs.get("S", 1.0),
-            'online': kwargs.get("online", False),
+            'S': kwargs.get("S", 7.0),
+            'online': kwargs.get("online", True),
             'curve': kwargs.get("curve", "convex"),
             'direction': kwargs.get("direction", "increasing"),
-            'interp_method': kwargs.get("interp_method", "interp1d"),
+            'interp_method': kwargs.get("interp_method", "polynomial"),
             'polynomial_degree': kwargs.get("polynomial_degree", 7),
         }
         # Filter out None values potentially returned by kwargs.get if default was None

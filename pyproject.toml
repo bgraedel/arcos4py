@@ -63,13 +63,11 @@ doc  = [
 
 
 [tool.poetry]
-# Only the packaging rules survive here
 packages = [
     { include = "arcos4py" },
     { include = "tests", format = "sdist" },
 ]
 
-# Your existing Black / isort settings are untouched
 [tool.black]
 line-length                = 120
 skip-string-normalization  = true
