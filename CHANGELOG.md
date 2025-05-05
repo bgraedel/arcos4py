@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.2] - 2025-05-05
+### Fixed
+- Fixed issue with 3d movie plotting
+
+### Added
+- Support for python 3.12
+- Drop support for python 3.9
+
 ## [0.3.1] - 2025-04-01
 ### Added
 - Added function to export timeseries images to a folder
