@@ -1408,7 +1408,7 @@ def _yield_animation_frames(  # noqa: C901
                         measurements = valid_cells[measurement_col].values
                         colors = cmap_all_cells(norm_all_cells(measurements))
                         if is_3d:
-                            ax.scatter(
+                            ax.scatter(  # type: ignore[misc]
                                 valid_cells[pos_cols[0]],
                                 valid_cells[pos_cols[1]],
                                 valid_cells[pos_cols[2]],
@@ -1428,7 +1428,7 @@ def _yield_animation_frames(  # noqa: C901
                             )
                 elif not valid_cells.empty:  # Fallback to fixed color
                     if is_3d:
-                        ax.scatter(
+                        ax.scatter(  # type: ignore[misc]
                             valid_cells[pos_cols[0]],
                             valid_cells[pos_cols[1]],
                             valid_cells[pos_cols[2]],
@@ -1461,7 +1461,7 @@ def _yield_animation_frames(  # noqa: C901
                     if not valid_cells.empty:
                         # FIX: Use explicit kwargs for scatter
                         if is_3d:
-                            ax.scatter(
+                            ax.scatter(  # type: ignore[misc]
                                 valid_cells[pos_cols[0]],
                                 valid_cells[pos_cols[1]],
                                 valid_cells[pos_cols[2]],
@@ -1505,7 +1505,7 @@ def _yield_animation_frames(  # noqa: C901
                         color = cmap_events(color_index)
 
                         if is_3d:
-                            ax.scatter(
+                            ax.scatter(  # type: ignore[misc]
                                 event_points[:, 0],
                                 event_points[:, 1],
                                 event_points[:, 2],
