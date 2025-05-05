@@ -1409,9 +1409,9 @@ def _yield_animation_frames(  # noqa: C901
                         colors = cmap_all_cells(norm_all_cells(measurements))
                         if is_3d:
                             ax.scatter(
-                                x=valid_cells[pos_cols[0]],
-                                y=valid_cells[pos_cols[1]],
-                                z=valid_cells[pos_cols[2]],
+                                valid_cells[pos_cols[0]],
+                                valid_cells[pos_cols[1]],
+                                valid_cells[pos_cols[2]],
                                 s=all_cells_size,
                                 c=colors,
                                 alpha=all_cells_alpha,
@@ -1429,9 +1429,9 @@ def _yield_animation_frames(  # noqa: C901
                 elif not valid_cells.empty:  # Fallback to fixed color
                     if is_3d:
                         ax.scatter(
-                            x=valid_cells[pos_cols[0]],
-                            y=valid_cells[pos_cols[1]],
-                            z=valid_cells[pos_cols[2]],
+                            valid_cells[pos_cols[0]],
+                            valid_cells[pos_cols[1]],
+                            valid_cells[pos_cols[2]],
                             s=all_cells_size,
                             c=all_cells_fixed_color,
                             alpha=all_cells_alpha,
@@ -1462,9 +1462,9 @@ def _yield_animation_frames(  # noqa: C901
                         # FIX: Use explicit kwargs for scatter
                         if is_3d:
                             ax.scatter(
-                                x=valid_cells[pos_cols[0]],
-                                y=valid_cells[pos_cols[1]],
-                                z=valid_cells[pos_cols[2]],
+                                valid_cells[pos_cols[0]],
+                                valid_cells[pos_cols[1]],
+                                valid_cells[pos_cols[2]],
                                 s=bin_cell_size,
                                 c=bin_cell_color,
                                 alpha=bin_cell_alpha,
@@ -1506,9 +1506,9 @@ def _yield_animation_frames(  # noqa: C901
 
                         if is_3d:
                             ax.scatter(
-                                x=event_points[:, 0],
-                                y=event_points[:, 1],
-                                z=event_points[:, 2],
+                                event_points[:, 0],
+                                event_points[:, 1],
+                                event_points[:, 2],
                                 s=event_cell_size,
                                 c=[color],  # Scatter expects color sequence
                                 alpha=event_alpha,
