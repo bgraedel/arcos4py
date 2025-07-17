@@ -1228,7 +1228,7 @@ class Linker:
                 if count < self._min_clustersize:
                     linked_cluster_ids[linked_cluster_ids == unique_id] = -1  # Mark as noise
 
-        # if subcluster contained in original cluster_ids is too small, mark as value from a directly connected cluster
+        # if subcluster contained in original cluster_ids is too small, mark as noise
         for original_id in np.unique(original_cluster_ids):
             mask = original_cluster_ids == original_id
             unique_ids, counts = np.unique(linked_cluster_ids[mask], return_counts=True)
