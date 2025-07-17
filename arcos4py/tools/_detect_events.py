@@ -1183,8 +1183,6 @@ class Linker:
     def _get_next_id(self) -> int:
         """Generate a new unique ID."""
         self._memory.max_prev_cluster_id += 1
-        if self._memory.max_prev_cluster_id == 92:
-            pass
         return self._memory.max_prev_cluster_id
 
     def _apply_remove_small_clusters(self, linked_cluster_ids, original_cluster_ids):
@@ -1716,8 +1714,10 @@ class ImageTracker(BaseTracker):
 
         # check input
         for i in dims_list:
-            if i not in dims_list:
-                raise ValueError(f"Invalid dimension {i}. Must be 'T', 'X', 'Y', or 'Z'.")
+            if i not in available_dims:
+                raise ValueError(
+                    f"Invalid dimension {i}. Must be 'T', 'X', 'Y', or 'Z'."
+                )
 
         if len(dims_list) > len(set(dims_list)):
             raise ValueError("Duplicate dimensions in dims.")
@@ -1999,12 +1999,15 @@ def track_events_image(
         min_size_for_split=min_size_for_split,
     )
     tracker = ImageTracker(linker, downsample=downsample)
-    # find indices of T in dims
+    # find index of the time dimension and move it to the front
     T_index = dims.upper().index("T")
-    out = np.zeros_like(X, dtype=np.uint16)
+    image_reshaped = np.moveaxis(X, T_index, 0)
+    out_reshaped = np.zeros_like(image_reshaped, dtype=np.uint16)
 
-    for i in tqdm(range(X.shape[T_index]), disable=not show_progress):
-        out[i] = tracker.track_iteration(X[i])
+    for i in tqdm(range(image_reshaped.shape[0]), disable=not show_progress):
+        out_reshaped[i] = tracker.track_iteration(image_reshaped[i])
+
+    out = np.moveaxis(out_reshaped, 0, T_index)
 
     if any([allow_merges, allow_splits]):
         return out, linker.lineage_tracker
