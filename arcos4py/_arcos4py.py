@@ -123,10 +123,16 @@ class ARCOS:
     def _check_col(self):
         """Checks that self.cols contains all required columns."""
         columns = self.data.columns
-        input_columns = [self.frame_column, self.obj_id_column, self.obj_id_column, self.measurement_column]
+        input_columns = [
+            self.frame_column,
+            self.obj_id_column,
+            self.measurement_column,
+        ]
         input_columns = [col for col in input_columns if col is not None]
         if not all(item in columns for item in input_columns):
-            raise ValueError(f"Columns {input_columns} do not match with column in dataframe.")
+            raise ValueError(
+                f"Columns {input_columns} do not match with column in dataframe."
+            )
 
     def interpolate_measurements(self) -> pd.DataFrame:
         """Interpolates NaN's in place in measurement column.
