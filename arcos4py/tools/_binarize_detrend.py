@@ -33,10 +33,9 @@ class detrender:
         smooth_k (int): Representing the size of the short-term median smoothing filter.
         bias_k (int): Representing the size of the long-term de-trending median filter.
         peak_threshold (float): Threshold for rescaling of the de-trended signal.
-        polynomial_degree (int): Sets the degree of the polynomial for lm fitting..
+        polynomial_degree (int): Sets the degree of the polynomial for lm fitting.
         bias_method (str): Indicating de-trending method, one of ['runmed', 'lm', 'none'].
-        n_jobs (int): Number of paralell workers to spawn, -1 uses all available cpus.biasMet (str):
-            Indicating de-trending method, one of ['runmed', 'lm', 'none'].
+        n_jobs (int): Number of parallel workers to spawn, -1 uses all available CPUs.
     """
 
     def __init__(
@@ -53,7 +52,7 @@ class detrender:
 
         Arguments:
             smooth_k (int): Representing the size of the short-term median smoothing filter.
-            bias_k (int): Representing the size of the long-term de-trending median filter.ian filter.
+            bias_k (int): Representing the size of the long-term de-trending median filter.
             peak_threshold (float): Threshold for rescaling of the de-trended signal.
             polynomial_degree (int): Sets the degree of the polynomial for lm fitting.
             bias_method (str): Indicating de-trending method, one of ['runmed', 'lm', 'none'].

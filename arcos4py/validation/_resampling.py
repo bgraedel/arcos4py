@@ -42,12 +42,16 @@ def _get_xy_change(X: np.ndarray, object_ids: np.ndarray) -> tuple[pd.DataFrame,
 
 
 def shuffle_tracks(
-    df: pd.DataFrame, object_id_column: str = 'track_id', positoin_column: list = ['x', 'y'], frame_column='t', seed=42
+    df: pd.DataFrame,
+    object_id_column: str = 'track_id',
+    position_columns: list = ['x', 'y'],
+    frame_column='t',
+    seed=42,
 ) -> pd.DataFrame:
     """Resample tracks by switching the first timepoint\
-        positions of two tracks and then propagating the cummulative difference."""
+        positions of two tracks and then propagating the cumulative difference."""
     df.sort_values([object_id_column, frame_column], inplace=True)  # needs to be sorted for _get_xy_change to work
-    df_pos_cols_np = df[positoin_column].to_numpy()
+    df_pos_cols_np = df[position_columns].to_numpy()
     factorized_oid, _ = pd.factorize(df[object_id_column])
 
     # Set the random seed
@@ -94,13 +98,13 @@ def shuffle_tracks(
         df_pos_cols_np[random_track_rows] += xy_change[random_track_rows]
         switched_tracks.add(random_track_id)
     df_out = df.copy(deep=True)
-    df_out[positoin_column] = df_pos_cols_np
+    df_out[position_columns] = df_pos_cols_np
     return df_out
 
 
 def shuffle_timepoints(
     df: pd.DataFrame,
-    objet_id_column: str = 'track_id',
+    object_id_column: str = 'track_id',
     frame_column: str = 'time',
     seed=42,
 ) -> pd.DataFrame:
@@ -109,7 +113,7 @@ def shuffle_timepoints(
     # Set the random seed
     rng = np.random.default_rng(seed)
     # Get unique track IDs
-    track_ids = df_new[objet_id_column].factorize()[0]
+    track_ids = df_new[object_id_column].factorize()[0]
     unique_track_ids = np.unique(track_ids)
 
     # get timepoints
@@ -125,7 +129,7 @@ def shuffle_timepoints(
         df_t_np[track_rows] = df_t_shuffle
 
     df_new[frame_column] = df_t_np
-    df_new.sort_values(by=[objet_id_column, frame_column], inplace=True)
+    df_new.sort_values(by=[object_id_column, frame_column], inplace=True)
     return df_new
 
 
@@ -140,7 +144,7 @@ def _get_activity_blocks(data: np.ndarray) -> list[np.ndarray]:
     return activity_blocks
 
 
-def shuffle_activity_bocks_per_trajectory(
+def shuffle_activity_blocks_per_trajectory(
     df: pd.DataFrame,
     object_id_column: str,
     frame_column: str,
@@ -150,14 +154,14 @@ def shuffle_activity_bocks_per_trajectory(
 ) -> pd.DataFrame:
     """Resample data by shuffling the activity blocks of a binary activity column on a per trajectory basis."""
     df_new = df.copy(deep=True)
-    # check if data in meas_column is binary
+    # check if data in measurement_column is binary
     if not np.array_equal(np.unique(df_new[measurement_column]), np.array([0, 1])):
-        raise ValueError('Data in meas_column must be binary')
+        raise ValueError('Data in measurement_column must be binary')
 
     # raise warning if 1 makes up more than 25% of the array
     if np.sum(df_new[measurement_column]) / df_new[measurement_column].size > 0.25:
         warnings.warn(
-            'More than 25%% of the data in meas_column is 1.\
+            'More than 25%% of the data in measurement_column is 1.\
             This could impact the validity of this resampling approach.'
         )
 
@@ -236,7 +240,7 @@ def shuffle_coordinates_per_timepoint(
 def shift_timepoints_per_trajectory(
     df: pd.DataFrame, object_id_column: str, frame_column: str, seed=42
 ) -> pd.DataFrame:
-    """Resample data by shifting the timepoints a random ammount of a trajectory on a per trajectory basis."""
+    """Resample data by shifting the timepoints a random amount of a trajectory on a per trajectory basis."""
     df_new = df.copy(deep=True)
     # Set the random seed
     rng = np.random.default_rng(seed)
@@ -336,7 +340,7 @@ def resample_data(  # noqa: C901
     if not isinstance(obj_id_column, str):
         raise TypeError('id_column must be a string')
     if not isinstance(measurement_column, str) and measurement_column is not None:
-        raise TypeError('meas_column must be a string or None')
+        raise TypeError('measurement_column must be a string or None')
     if not isinstance(method, str) and not isinstance(method, list):
         raise TypeError('method must be a string or list')
     if not isinstance(n, int):
@@ -346,7 +350,7 @@ def resample_data(  # noqa: C901
     if not isinstance(verbose, bool):
         raise TypeError('verbose must be a boolean')
     if not isinstance(parallel_processing, bool):
-        raise TypeError('paralell_processing must be a boolean')
+        raise TypeError('parallel_processing must be a boolean')
 
     if len(position_columns) < 1:
         raise ValueError('posCols must contain at least one column')
@@ -359,7 +363,7 @@ def resample_data(  # noqa: C901
         'shuffle_tracks': shuffle_tracks,
         'shuffle_timepoints': shuffle_timepoints,
         'shift_timepoints': shift_timepoints_per_trajectory,
-        'shuffle_binary_blocks': shuffle_activity_bocks_per_trajectory,
+        'shuffle_binary_blocks': shuffle_activity_blocks_per_trajectory,
         'shuffle_coordinates_timepoint': shuffle_coordinates_per_timepoint,
     }
 
@@ -384,7 +388,7 @@ def resample_data(  # noqa: C901
         if method not in method_dict.keys():
             raise ValueError(f'method must be one of {method_dict.keys()}')
         if method == 'shuffle_binary_blocks' and measurement_column is None:
-            raise ValueError('meas_column must be set for binary_blocks_shuffle')
+            raise ValueError('measurement_column must be set for binary_blocks_shuffle')
 
     # Check if the columns are in the data
     if 'shuffle_binary_blocks' in methods:

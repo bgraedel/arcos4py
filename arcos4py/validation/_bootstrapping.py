@@ -317,15 +317,15 @@ def calculate_arcos_stats(
         binarization_threshold (float, optional): Threshold for binarizing measurements after detrending. Defaults to 0.1.
         polynomial_degree (int, optional): Polynomial degree used for detrending (used with biasMet='lm'). Defaults to 1.
         bias_method (str, optional): Bias method, can be 'none', 'runmed', 'lm'. Defaults to "runmed".
-        eps (float, optional): Epsilon used for culstering active entities. Defaults to 2.
-        eps_prev (int, optional): Epsilon used for linking together culsters across time. Defaults to None.
+        eps (float, optional): Epsilon used for clustering active entities. Defaults to 2.
+        eps_prev (int, optional): Epsilon used for linking together clusters across time. Defaults to None.
         min_clustersize (int, optional): Minimum cluster size. Defaults to 1.
         n_prev (int, optional): Number of previous frames to consider when tracking clusters. Defaults to 1.
         min_duration (int, optional): Minimum duration of detected event. Defaults to 1.
         min_total_size (int, optional): Minimum size, minimum size of detected event. Defaults to 1.
         stats_metric (list[str], optional): List of metrics to calculate. Defaults to ['duration', 'total_size'].
         show_progress (bool, optional): Show progress bar. Defaults to True.
-        parallel_processing (bool, optional): Use paralell processing, uses the joblib package. Defaults to True.
+        parallel_processing (bool, optional): Use parallel processing, uses the joblib package. Defaults to True.
         clid_column (str, optional): Name of the cluster id column. Defaults to 'clid'.
         **kwargs (Any): Additional keyword arguments. Includes deprecated parameters.
             - posCols: Deprecated. Use position_columns instead.
