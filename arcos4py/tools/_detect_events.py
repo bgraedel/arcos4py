@@ -2163,7 +2163,7 @@ class detectCollev:
                 point to be considered as a core point. This includes the point itself.
                 Only used if clusteringMethod is 'hdbscan'. If None, minSamples =  minClsz.
             linkingMethod (str): The method used for linking. Default is 'nearest'.
-            n_jobs (int): Number of paralell workers to spawn, -1 uses all available cpus.
+            n_jobs (int): Number of parallel workers to spawn, -1 uses all available CPUs.
             predictor (bool | Callable): Whether or not to use a predictor. Default is False.
                 True uses the default predictor. A callable can be passed to use a custom predictor.
                 See default predictor method for details.

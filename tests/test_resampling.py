@@ -7,7 +7,7 @@ from arcos4py.validation._resampling import (
     _get_xy_change,
     resample_data,
     shift_timepoints_per_trajectory,
-    shuffle_activity_bocks_per_trajectory,
+    shuffle_activity_blocks_per_trajectory,
     shuffle_coordinates_per_timepoint,
     shuffle_timepoints,
     shuffle_tracks,
@@ -47,7 +47,7 @@ def test_shuffle_tracks():
     assert df_new['y'].to_list() != [2, 3, 4, 5, 6, 7]
 
     # Assert that x and y stay in the correct pairs but with relative values
-    # according to the cummulative change of the original track
+    # according to the cumulative change of the original track
     assert df_new.loc[df_new['track_id'] == 1, ['x', 'y']].to_numpy().tolist() == [[4, 5], [5, 6], [6, 7]]
     assert df_new.loc[df_new['track_id'] == 2, ['x', 'y']].to_numpy().tolist() == [[1, 2], [3, 4], [5, 6]]
 
@@ -97,7 +97,7 @@ def test_shuffle_activity_blocks_per_trajectory():
     test_df.sort_values(by=['time', 'track_id'], inplace=True)
 
     # Test the function with a specific seed
-    df_new = shuffle_activity_bocks_per_trajectory(
+    df_new = shuffle_activity_blocks_per_trajectory(
         test_df, 'track_id', 'time', 'activity', seed=42, alternating_blocks=True
     )
 
